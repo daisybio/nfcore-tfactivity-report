@@ -1,0 +1,107 @@
+---
+export interface Props {
+  name: string;
+}
+
+const { name } = Astro.props;
+const chartId = `de-chart-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+---
+
+<div>
+  <h4 class="font-semibold text-gray-800 mb-2">Differential Expression</h4>
+  <div id={chartId} style="height: 300px;"></div>
+</div>
+
+<script src="https://cdn.plot.ly/plotly-3.0.1.min.js" charset="utf-8"></script>
+
+<script define:vars={{ chartId, name }}>
+  // Function to create differential expression chart
+  async function createDifferentialExpressionChart() {
+    try {
+      const response = await fetch(`/transcription_factors/${name}.json`);
+      if (!response.ok) {
+        console.warn(`Could not load data for ${name}: ${response.status}`);
+        return;
+      }
+      
+      const tfData = await response.json();
+      const differentialExpression = tfData.differential_expression || {};
+      
+      const comparisons = Object.keys(differentialExpression);
+      if (comparisons.length === 0) {
+        console.warn(`No differential expression data found for ${name}`);
+        return;
+      }
+      
+      const log2FoldChanges = comparisons.map(comp => differentialExpression[comp]?.log2FoldChange || 0);
+      const pValues = comparisons.map(comp => differentialExpression[comp]?.pvalue || 1);
+      
+      // Color bars based on significance (p < 0.05)
+      const barColors = pValues.map(p => p < 0.05 ? '#dc2626' : '#6b7280'); // Red for significant, gray for non-significant
+      const significanceText = pValues.map((p, i) => 
+        p < 0.05 ? `Significant, p-value=${p.toExponential(2)}` : `Not significant, p-value=${p.toExponential(2)}`
+      );
+      
+      const deData = [{
+        x: log2FoldChanges,
+        y: comparisons,
+        type: 'bar',
+        orientation: 'h',
+        marker: {
+          color: barColors,
+          opacity: 0.8
+        },
+        text: significanceText,
+        textposition: 'auto',
+        hovertemplate: '<b>%{y}</b><br>Log2 Fold Change: %{x:.3f}<br>P-value: %{customdata:.2e}<br>%{text}<extra></extra>',
+        customdata: pValues
+      }];
+      
+      const deLayout = {
+        title: {
+          text: `${name} Log2 Fold Change by Comparison`,
+          font: { size: 14, color: '#374151' }
+        },
+        xaxis: {
+          title: 'Log2 Fold Change',
+          font: { size: 12 },
+          zeroline: true,
+          zerolinecolor: '#374151',
+          zerolinewidth: 2
+        },
+        yaxis: {
+          title: 'Condition Comparison',
+          font: { size: 12 },
+          automargin: true
+        },
+        margin: {
+          l: 150,
+          r: 30,
+          t: 50,
+          b: 60
+        },
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        showlegend: false
+      };
+
+      const config = {
+        responsive: true,
+        displayModeBar: false
+      };
+
+      const deChartElement = document.getElementById(chartId);
+      if (deChartElement) {
+        Plotly.newPlot(chartId, deData, deLayout, config);
+      }
+      
+    } catch (error) {
+      console.error(`Error loading differential expression data for ${name}:`, error);
+    }
+  }
+
+  // Create plot when the DOM is ready
+  document.addEventListener('DOMContentLoaded', () => {
+    createDifferentialExpressionChart();
+  });
+</script> 
