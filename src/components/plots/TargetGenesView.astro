@@ -20,6 +20,14 @@ const { name } = Astro.props;
         Analyze in g:Profiler
       </button>
     </div>
+
+    <!-- Info Note -->
+    <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+      <p class="text-sm text-blue-800">
+        <span class="font-medium">Note:</span> Gene rankings are calculated by averaging scores across currently active assays. 
+        Toggle assays above to see how rankings change.
+      </p>
+    </div>
     
     <!-- Gene Count Slider -->
     <div class="mb-4 flex items-center space-x-4">
