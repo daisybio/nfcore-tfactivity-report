@@ -180,10 +180,15 @@ const { name } = Astro.props;
           targetGenesContainer.innerHTML = `
             <div class="space-y-2">
               ${averagedGenes.map((item, index) => `
-                <div class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
+                <div class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors duration-150">
                   <div class="flex items-center space-x-3">
                     <span class="font-medium text-gray-700 text-sm w-6">#${index + 1}</span>
-                    <span class="font-semibold text-gray-900">${item.gene}</span>
+                    <a 
+                      href="/tf/${name.toLowerCase()}/target/${item.gene.toLowerCase()}" 
+                      class="font-semibold text-gray-900 hover:text-blue-600 transition-colors duration-150"
+                    >
+                      ${item.gene}
+                    </a>
                   </div>
                   <div class="text-sm font-medium text-blue-600">${item.avgScore.toFixed(3)}</div>
                 </div>
