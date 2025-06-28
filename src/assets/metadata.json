@@ -22,5 +22,12 @@
         "H3K27ac",
         "H3K4me3",
         "chromHMM_promoters"
+    ],
+    "transcription_factors": [
+        "ARID5A",
+        "ATF3",
+        "TFCP2L1",
+        "TWIST2",
+        "NPAS2"
     ]
 }

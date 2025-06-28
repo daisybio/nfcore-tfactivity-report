@@ -1,0 +1,157 @@
+---
+import rankingData from "../assets/ranking.json";
+import metadata from "../assets/metadata.json";
+import TranscriptionFactorEntry from "./TranscriptionFactorEntry.astro";
+---
+
+<div class="max-w-4xl mx-auto px-4 py-6">
+  <h2 class="text-2xl font-bold text-gray-800 mb-4 text-center">Transcription Factor Rankings</h2>
+  <div id="ranking-container" class="bg-white rounded-lg border border-gray-200 shadow-sm">
+    <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 rounded-t-lg">
+      <div class="grid grid-cols-3 gap-4 font-semibold text-gray-700">
+        <span>Rank</span>
+        <span>Transcription Factor</span>
+        <span class="text-right">Average Score</span>
+      </div>
+    </div>
+    <div id="ranking-list" class="divide-y divide-gray-100" style="display: flex; flex-direction: column;">
+      {(metadata as any).transcription_factors.map((tf: string, index: number) => (
+        <div data-tf={tf} style={`order: ${index}`} class="tf-entry">
+          <TranscriptionFactorEntry 
+            rank={index + 1}
+            name={tf}
+            averageScore={0}
+            assayCount={0}
+          />
+        </div>
+      ))}
+    </div>
+  </div>
+</div>
+
+<script define:vars={{ rankingData }}>
+  function calculateRankings() {
+    // Get currently active assays
+    const activeAssays = Array.from(document.querySelectorAll('.assay-toggle[data-active="true"]'))
+      .map(button => button.getAttribute('data-assay'));
+    
+    if (activeAssays.length === 0) return [];
+    
+    // Calculate average scores for each transcription factor
+    const tfScores = {};
+    
+    // Iterate through all transcription factors across all assays
+    Object.keys(rankingData).forEach(assay => {
+      if (activeAssays.includes(assay)) {
+        Object.keys(rankingData[assay]).forEach(tf => {
+          if (!tfScores[tf]) {
+            tfScores[tf] = { scores: [], total: 0, count: 0 };
+          }
+          tfScores[tf].scores.push(rankingData[assay][tf]);
+          tfScores[tf].total += rankingData[assay][tf];
+          tfScores[tf].count += 1;
+        });
+      }
+    });
+    
+    // Calculate averages and create ranking array
+    const rankings = Object.keys(tfScores).map(tf => ({
+      name: tf,
+      averageScore: tfScores[tf].total / tfScores[tf].count,
+      assayCount: tfScores[tf].count
+    }));
+    
+    // Sort by average score (descending)
+    rankings.sort((a, b) => b.averageScore - a.averageScore);
+    
+    return rankings;
+  }
+  
+  function updateEntryContent(entryElement, rank, averageScore, assayCount) {
+    // Find and update the rank
+    const rankSpan = entryElement.querySelector('.text-gray-600');
+    if (rankSpan) rankSpan.textContent = `#${rank}`;
+    
+    // Find and update the score
+    const scoreSpan = entryElement.querySelector('.text-blue-600');
+    if (scoreSpan) scoreSpan.textContent = averageScore.toFixed(3);
+    
+    // Find and update the assay count
+    const assaySpan = entryElement.querySelector('.text-gray-500');
+    if (assaySpan) assaySpan.textContent = `(${assayCount} assay${assayCount !== 1 ? 's' : ''})`;
+  }
+  
+  function updateRankingDisplay() {
+    const rankings = calculateRankings();
+    const allEntries = document.querySelectorAll('.tf-entry');
+    
+    // Hide all entries initially
+    allEntries.forEach(entry => {
+      entry.style.display = 'none';
+    });
+    
+    // Update and show entries that have data
+    rankings.forEach((tf, index) => {
+      const entryElement = document.querySelector(`[data-tf="${tf.name}"]`);
+      if (entryElement) {
+        updateEntryContent(entryElement, index + 1, tf.averageScore, tf.assayCount);
+        entryElement.style.order = index.toString();
+        entryElement.style.display = 'block';
+      }
+    });
+    
+    // Show message if no rankings available
+    const rankingList = document.getElementById('ranking-list');
+    if (rankings.length === 0 && rankingList) {
+      // Create or update empty state message
+      let emptyMessage = document.getElementById('empty-message');
+      if (!emptyMessage) {
+        emptyMessage = document.createElement('div');
+        emptyMessage.id = 'empty-message';
+        emptyMessage.className = 'px-6 py-8 text-center text-gray-500';
+        emptyMessage.textContent = 'No transcription factors found for selected assays.';
+        rankingList.appendChild(emptyMessage);
+      }
+      emptyMessage.style.display = 'block';
+    } else {
+      // Hide empty message if it exists
+      const emptyMessage = document.getElementById('empty-message');
+      if (emptyMessage) {
+        emptyMessage.style.display = 'none';
+      }
+    }
+  }
+  
+  // Update rankings when assay selection changes
+  function observeAssayChanges() {
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'data-active') {
+          updateRankingDisplay();
+        }
+      });
+    });
+    
+    // Observe all assay toggle buttons
+    document.querySelectorAll('.assay-toggle').forEach(button => {
+      observer.observe(button, { attributes: true });
+    });
+  }
+  
+  // Initialize rankings on page load
+  document.addEventListener('DOMContentLoaded', () => {
+    updateRankingDisplay();
+    observeAssayChanges();
+  });
+  
+  // Also update immediately if DOM is already loaded
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      updateRankingDisplay();
+      observeAssayChanges();
+    });
+  } else {
+    updateRankingDisplay();
+    observeAssayChanges();
+  }
+</script> 
