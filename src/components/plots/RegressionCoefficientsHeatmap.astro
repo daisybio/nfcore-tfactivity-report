@@ -1,0 +1,123 @@
+---
+export interface Props {
+  name: string;
+}
+
+const { name } = Astro.props;
+
+// Import the regression coefficients data
+import regressionCoefficients from '../../assets/regression_coefficients.json';
+---
+
+<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+  <h3 class="text-lg font-semibold text-gray-900 mb-4">Regression Coefficients</h3>
+  
+  <div class="overflow-x-auto">
+    <div id={`heatmap-${name}`} class="min-w-full">
+      <!-- Heatmap will be rendered here -->
+    </div>
+  </div>
+  
+  <!-- Legend -->
+  <div class="mt-4 flex items-center justify-center space-x-4">
+    <div class="flex items-center space-x-2">
+      <div class="w-4 h-4 bg-blue-800"></div>
+      <span class="text-xs text-gray-600">-1.0</span>
+    </div>
+    <div class="flex items-center space-x-2">
+      <div class="w-4 h-4 bg-white border border-gray-300"></div>
+      <span class="text-xs text-gray-600">0.0</span>
+    </div>
+    <div class="flex items-center space-x-2">
+      <div class="w-4 h-4 bg-red-800"></div>
+      <span class="text-xs text-gray-600">1.0</span>
+    </div>
+  </div>
+</div>
+
+<script define:vars={{ name, regressionCoefficients }}>
+  document.addEventListener('DOMContentLoaded', () => {
+    renderHeatmap();
+  });
+
+  function renderHeatmap() {
+    const container = document.getElementById(`heatmap-${name}`);
+    if (!container) return;
+
+    // Extract data for the specific transcription factor
+    const conditions = Object.keys(regressionCoefficients);
+    const allAssays = new Set();
+    
+    // Collect all unique assays
+    conditions.forEach(condition => {
+      Object.keys(regressionCoefficients[condition]).forEach(assay => {
+        allAssays.add(assay);
+      });
+    });
+    
+    const assays = Array.from(allAssays);
+
+    // Create the heatmap table
+    let html = '<table class="min-w-full border-collapse">';
+    
+    // Header row
+    html += '<thead><tr><th class="border border-gray-300 px-3 py-2 bg-gray-50 text-xs font-medium text-gray-700"></th>';
+    conditions.forEach(condition => {
+      html += `<th class="border border-gray-300 px-3 py-2 bg-gray-50 text-xs font-medium text-gray-700">${condition}</th>`;
+    });
+    html += '</tr></thead>';
+    
+    // Data rows
+    html += '<tbody>';
+    assays.forEach(assay => {
+      html += '<tr>';
+      html += `<td class="border border-gray-300 px-3 py-2 bg-gray-50 text-xs font-medium text-gray-700">${assay.replace('_', ' ')}</td>`;
+      
+      conditions.forEach(condition => {
+        const value = regressionCoefficients[condition]?.[assay]?.[name];
+        let cellContent = '';
+        let bgColor = 'bg-gray-100';
+        
+        if (value !== undefined && value !== null && typeof value === 'number' && !isNaN(value)) {
+          // Normalize value to 0-1 range for color mapping
+          const normalizedValue = (value + 1) / 2; // Convert from [-1,1] to [0,1]
+          
+          if (value < 0) {
+            // Blue shades for negative values
+            const intensity = Math.abs(value);
+            const blue = Math.round(255 - (intensity * 155)); // 255 to 100
+            bgColor = `background-color: rgb(${blue}, ${blue}, 255)`;
+          } else if (value > 0) {
+            // Red shades for positive values
+            const intensity = value;
+            const redGreen = Math.round(255 - (intensity * 155)); // 255 to 100
+            bgColor = `background-color: rgb(255, ${redGreen}, ${redGreen})`;
+          } else {
+            // White for zero
+            bgColor = 'background-color: white';
+          }
+          
+          cellContent = value.toFixed(3);
+        } else {
+          cellContent = 'N/A';
+          bgColor = 'background-color: #f3f4f6';
+        }
+        
+        html += `<td class="border border-gray-300 px-2 py-2 text-xs text-center" style="${bgColor}">${cellContent}</td>`;
+      });
+      
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    
+    container.innerHTML = html;
+  }
+</script>
+
+<style>
+  /* Ensure consistent cell sizing */
+  table td, table th {
+    min-width: 80px;
+    text-align: center;
+  }
+</style> 

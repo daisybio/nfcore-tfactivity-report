@@ -3,6 +3,7 @@ import DCGScoresChart from "./plots/DCGScoresChart.astro";
 import DifferentialExpressionChart from "./plots/DifferentialExpressionChart.astro";
 import TPMBoxplot from "./plots/TPMBoxplot.astro";
 import TargetGenesView from "./plots/TargetGenesView.astro";
+import RegressionCoefficientsHeatmap from "./plots/RegressionCoefficientsHeatmap.astro";
 
 export interface Props {
   name: string;
@@ -20,6 +21,9 @@ const { name } = Astro.props;
       </button>
       <button id={`tab-targets-${name}`} class="tab-button whitespace-nowrap py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">
         Target Genes
+      </button>
+      <button id={`tab-regression-${name}`} class="tab-button whitespace-nowrap py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">
+        Regression Coefficients
       </button>
     </nav>
   </div>
@@ -47,6 +51,10 @@ const { name } = Astro.props;
   <div id={`content-targets-${name}`} class="tab-content hidden">
     <TargetGenesView name={name} />
   </div>
+
+  <div id={`content-regression-${name}`} class="tab-content hidden">
+    <RegressionCoefficientsHeatmap name={name} />
+  </div>
 </div>
 
 
@@ -55,37 +63,51 @@ const { name } = Astro.props;
   document.addEventListener('DOMContentLoaded', () => {
     const plotsTab = document.getElementById(`tab-plots-${name}`);
     const targetsTab = document.getElementById(`tab-targets-${name}`);
+    const regressionTab = document.getElementById(`tab-regression-${name}`);
     const plotsContent = document.getElementById(`content-plots-${name}`);
     const targetsContent = document.getElementById(`content-targets-${name}`);
+    const regressionContent = document.getElementById(`content-regression-${name}`);
 
-    function switchTab(activeTab, activeContent, inactiveTab, inactiveContent) {
-      // Update active tab styles
+    const allTabs = [plotsTab, targetsTab, regressionTab];
+    const allContents = [plotsContent, targetsContent, regressionContent];
+
+    function switchTab(activeTab, activeContent) {
+      // Reset all tabs to inactive state
+      allTabs.forEach(tab => {
+        tab.classList.remove('active', 'border-blue-500', 'text-blue-600');
+        tab.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+      });
+
+      // Reset all content to hidden
+      allContents.forEach(content => {
+        content.classList.add('hidden');
+        content.classList.remove('active');
+      });
+
+      // Activate selected tab
       activeTab.classList.add('active', 'border-blue-500', 'text-blue-600');
       activeTab.classList.remove('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
-      
-      // Update inactive tab styles
-      inactiveTab.classList.remove('active', 'border-blue-500', 'text-blue-600');
-      inactiveTab.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
 
-      // Update content visibility
+      // Show selected content
       activeContent.classList.remove('hidden');
       activeContent.classList.add('active');
-      
-      inactiveContent.classList.add('hidden');
-      inactiveContent.classList.remove('active');
     }
 
     plotsTab.addEventListener('click', () => {
-      switchTab(plotsTab, plotsContent, targetsTab, targetsContent);
+      switchTab(plotsTab, plotsContent);
     });
 
     targetsTab.addEventListener('click', () => {
-      switchTab(targetsTab, targetsContent, plotsTab, plotsContent);
+      switchTab(targetsTab, targetsContent);
       // Load target genes when the tab is clicked
       const loadTargetGenesFunc = window[`loadTargetGenes_${name}`];
       if (loadTargetGenesFunc) {
         loadTargetGenesFunc();
       }
+    });
+
+    regressionTab.addEventListener('click', () => {
+      switchTab(regressionTab, regressionContent);
     });
   });
 </script>
