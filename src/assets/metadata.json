@@ -1,0 +1,26 @@
+{
+    "conditions": {
+        "L1": [
+            "L1-WT1",
+            "L1-WT2",
+            "L1-WT4"
+        ],
+        "L10": [
+            "L10-WT1",
+            "L10-WT2",
+            "L10-WT3",
+            "L10-WT4"
+        ],
+        "p6": [
+            "p6-WT1",
+            "p6-WT2",
+            "p6-WT4"
+        ]
+    },
+    "assays": [
+        "chromHMM_enhancers",
+        "H3K27ac",
+        "H3K4me3",
+        "chromHMM_promoters"
+    ]
+}

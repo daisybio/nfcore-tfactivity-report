@@ -1,0 +1,95 @@
+---
+import metadata from "../assets/metadata.json";
+---
+
+<div class="max-w-4xl mx-auto px-4">
+  <div class="flex flex-wrap justify-center gap-3 py-6">
+    {metadata.assays.map((assay: string, index: number) => (
+      <button 
+        class="assay-toggle px-4 py-2 rounded-lg border-2 transition-colors duration-200 font-medium bg-blue-600 text-white border-blue-600 relative"
+        data-assay={assay}
+        data-active="true"
+        title=""
+      >
+        {assay}
+        <div class="tooltip absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-sm rounded-lg opacity-0 pointer-events-none transition-opacity duration-200 whitespace-nowrap z-10">
+          At least one assay must remain active
+        </div>
+      </button>
+    ))}
+  </div>
+</div>
+
+<script>
+  // Handle toggle button functionality
+  const toggleButtons = document.querySelectorAll('.assay-toggle');
+  
+  function updateButtonStates() {
+    const activeButtons = document.querySelectorAll('.assay-toggle[data-active="true"]');
+    
+    toggleButtons.forEach(button => {
+      const htmlButton = button as HTMLElement;
+      const isActive = button.getAttribute('data-active') === 'true';
+      const isLastActive = isActive && activeButtons.length === 1;
+      const tooltip = button.querySelector('.tooltip') as HTMLElement;
+      
+      if (isLastActive) {
+        // Not clickable - show disabled cursor and enable tooltip
+        htmlButton.style.cursor = 'not-allowed';
+        button.addEventListener('mouseenter', showTooltip);
+        button.addEventListener('mouseleave', hideTooltip);
+      } else {
+        // Clickable - normal cursor and disable tooltip
+        htmlButton.style.cursor = 'pointer';
+        button.removeEventListener('mouseenter', showTooltip);
+        button.removeEventListener('mouseleave', hideTooltip);
+        if (tooltip) tooltip.style.opacity = '0';
+      }
+    });
+  }
+  
+  function showTooltip(event: Event) {
+    const target = event.target as HTMLElement;
+    const tooltip = target.querySelector('.tooltip') as HTMLElement;
+    if (tooltip) tooltip.style.opacity = '1';
+  }
+  
+  function hideTooltip(event: Event) {
+    const target = event.target as HTMLElement;
+    const tooltip = target.querySelector('.tooltip') as HTMLElement;
+    if (tooltip) tooltip.style.opacity = '0';
+  }
+  
+  toggleButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      const isCurrentlyActive = button.getAttribute('data-active') === 'true';
+      const activeButtons = document.querySelectorAll('.assay-toggle[data-active="true"]');
+      
+      // If trying to deactivate the last active button, prevent it
+      if (isCurrentlyActive && activeButtons.length === 1) {
+        return;
+      }
+      
+      // Toggle the clicked button
+      if (isCurrentlyActive) {
+        button.setAttribute('data-active', 'false');
+        button.className = button.className.replace(
+          'bg-blue-600 text-white border-blue-600',
+          'bg-white text-gray-700 border-gray-300 hover:border-blue-400'
+        );
+      } else {
+        button.setAttribute('data-active', 'true');
+        button.className = button.className.replace(
+          'bg-white text-gray-700 border-gray-300 hover:border-blue-400',
+          'bg-blue-600 text-white border-blue-600'
+        );
+      }
+      
+      // Update button states after toggle
+      updateButtonStates();
+    });
+  });
+  
+  // Initialize button states on page load
+  updateButtonStates();
+</script> 

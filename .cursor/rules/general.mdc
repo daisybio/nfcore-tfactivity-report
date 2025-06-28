@@ -1,0 +1,13 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+This app encodes a scientific report that is generated as part of the nextflow pipeline nf-core/tfactivity. It is built using astro and utilizes tailwind CSS for styling. The pipeline will fill the assets directory with the generated data, and then the report is built using this astro app. The current data in assets are example results.
+
+The pipeline is about identifying differentially active transcription factors based on transcriptomic data and open-chromatin information. There are many different assays for open chromatin information supported.
+
+Implement a clean, scientific user interface, that is suitable for usage by both biologists and bioinformaticians.
+The entire app should take up 1200px width at most, and if the screen is wider, whitespace should be shown to the left and right symmetrically.
+
+Do not run the application (npm run dev), I have an instance running all the time. If you want to check if your code produces errors, you may build the report (npm run build).
