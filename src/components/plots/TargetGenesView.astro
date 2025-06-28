@@ -1,0 +1,242 @@
+---
+export interface Props {
+  name: string;
+}
+
+const { name } = Astro.props;
+---
+
+<div class="space-y-6">
+  <!-- Top Target Genes -->
+  <div>
+    <!-- Header with g:Profiler Button -->
+    <div class="mb-4 flex items-center justify-between">
+      <h4 class="font-semibold text-gray-800">Top Target Genes (Averaged Across Active Assays)</h4>
+      <button 
+        id={`gprofiler-btn-${name}`}
+        class="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-200 font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+        disabled
+      >
+        Analyze in g:Profiler
+      </button>
+    </div>
+    
+    <!-- Gene Count Slider -->
+    <div class="mb-4 flex items-center space-x-4">
+      <label for={`gene-count-${name}`} class="text-sm font-medium text-gray-700 whitespace-nowrap">
+        Show top:
+      </label>
+      <input 
+        type="range" 
+        id={`gene-count-${name}`}
+        min="5" 
+        max="20" 
+        value="10" 
+        class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+      />
+      <span id={`gene-count-display-${name}`} class="text-sm font-medium text-blue-600 w-8">10</span>
+      <span class="text-sm text-gray-500">genes</span>
+    </div>
+    
+    <div id={`target-genes-${name}`} class="bg-white rounded-lg p-4 border border-gray-200">
+      <div class="text-center text-gray-500 py-4">
+        Loading target genes...
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .slider::-webkit-slider-thumb {
+    appearance: none;
+    height: 16px;
+    width: 16px;
+    border-radius: 50%;
+    background: #2563eb;
+    cursor: pointer;
+    border: 2px solid #ffffff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .slider::-moz-range-thumb {
+    height: 16px;
+    width: 16px;
+    border-radius: 50%;
+    background: #2563eb;
+    cursor: pointer;
+    border: 2px solid #ffffff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .slider::-webkit-slider-track {
+    height: 8px;
+    background: #e5e7eb;
+    border-radius: 4px;
+  }
+
+  .slider::-moz-range-track {
+    height: 8px;
+    background: #e5e7eb;
+    border-radius: 4px;
+    border: none;
+  }
+
+  .slider:focus {
+    outline: none;
+  }
+
+  .slider:focus::-webkit-slider-thumb {
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+  }
+</style>
+
+<script define:vars={{ name }}>
+  document.addEventListener('DOMContentLoaded', () => {
+    // Setup slider functionality
+    const geneCountSlider = document.getElementById(`gene-count-${name}`);
+    const geneCountDisplay = document.getElementById(`gene-count-display-${name}`);
+    
+    if (geneCountSlider && geneCountDisplay) {
+      geneCountSlider.addEventListener('input', (e) => {
+        const value = e.target.value;
+        geneCountDisplay.textContent = value;
+        loadTargetGenes();
+      });
+    }
+
+    // Function to get currently active assays
+    function getActiveAssays() {
+      const activeButtons = document.querySelectorAll('.assay-toggle[data-active="true"]');
+      return Array.from(activeButtons).map(button => button.getAttribute('data-assay'));
+    }
+
+    // Function to load and display target genes
+    async function loadTargetGenes() {
+      try {
+        const response = await fetch(`/transcription_factors/${name}.json`);
+        if (!response.ok) {
+          console.warn(`Could not load data for ${name}: ${response.status}`);
+          return;
+        }
+        
+        const tfData = await response.json();
+        const targetGenesData = tfData.target_genes || {};
+        
+        const activeAssays = getActiveAssays();
+        if (activeAssays.length === 0) {
+          console.warn('No active assays found');
+          return;
+        }
+
+        // Calculate average scores for each target gene across active assays
+        const geneScores = {};
+        const geneAssayCounts = {};
+
+        // Collect scores from all active assays
+        activeAssays.forEach(assay => {
+          const assayData = targetGenesData[assay] || {};
+          Object.entries(assayData).forEach(([gene, score]) => {
+            if (!geneScores[gene]) {
+              geneScores[gene] = 0;
+              geneAssayCounts[gene] = 0;
+            }
+            geneScores[gene] += score;
+            geneAssayCounts[gene]++;
+          });
+        });
+
+        // Get current slider value
+        const geneCountSlider = document.getElementById(`gene-count-${name}`);
+        const topCount = geneCountSlider ? parseInt(geneCountSlider.value) : 10;
+
+        // Calculate averages and create sorted list
+        const averagedGenes = Object.entries(geneScores)
+          .map(([gene, totalScore]) => ({
+            gene,
+            avgScore: totalScore / geneAssayCounts[gene]
+          }))
+          .sort((a, b) => b.avgScore - a.avgScore)
+          .slice(0, topCount);
+
+        // Display target genes
+        const targetGenesContainer = document.getElementById(`target-genes-${name}`);
+        if (targetGenesContainer && averagedGenes.length > 0) {
+          targetGenesContainer.innerHTML = `
+            <div class="space-y-2">
+              ${averagedGenes.map((item, index) => `
+                <div class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
+                  <div class="flex items-center space-x-3">
+                    <span class="font-medium text-gray-700 text-sm w-6">#${index + 1}</span>
+                    <span class="font-semibold text-gray-900">${item.gene}</span>
+                  </div>
+                  <div class="text-sm font-medium text-blue-600">${item.avgScore.toFixed(3)}</div>
+                </div>
+              `).join('')}
+            </div>
+          `;
+
+          // Enable g:Profiler button and set up click handler
+          const gProfilerBtn = document.getElementById(`gprofiler-btn-${name}`);
+          if (gProfilerBtn) {
+            gProfilerBtn.disabled = false;
+            
+            // Remove existing event listeners to avoid duplicates
+            gProfilerBtn.replaceWith(gProfilerBtn.cloneNode(true));
+            const newGProfilerBtn = document.getElementById(`gprofiler-btn-${name}`);
+            
+            newGProfilerBtn.addEventListener('click', () => {
+              const geneList = averagedGenes.map(item => item.gene).join('\n');
+              const gProfilerUrl = `https://biit.cs.ut.ee/gprofiler/gost?organism=hsapiens&query=${encodeURIComponent(geneList)}&ordered=true`;
+              window.open(gProfilerUrl, '_blank');
+            });
+          }
+        } else if (targetGenesContainer) {
+          targetGenesContainer.innerHTML = `
+            <div class="text-center text-gray-500 py-4">
+              No target genes found for active assays
+            </div>
+          `;
+
+          // Disable g:Profiler button when no genes are available
+          const gProfilerBtn = document.getElementById(`gprofiler-btn-${name}`);
+          if (gProfilerBtn) {
+            gProfilerBtn.disabled = true;
+          }
+        }
+        
+      } catch (error) {
+        console.error(`Error loading target genes for ${name}:`, error);
+        const targetGenesContainer = document.getElementById(`target-genes-${name}`);
+        if (targetGenesContainer) {
+          targetGenesContainer.innerHTML = `
+            <div class="text-center text-red-500 py-4">
+              Error loading target genes data
+            </div>
+          `;
+        }
+
+        // Disable g:Profiler button on error
+        const gProfilerBtn = document.getElementById(`gprofiler-btn-${name}`);
+        if (gProfilerBtn) {
+          gProfilerBtn.disabled = true;
+        }
+      }
+    }
+
+    // Expose loadTargetGenes globally for the parent component
+    window[`loadTargetGenes_${name}`] = loadTargetGenes;
+
+    // Listen for assay toggle changes to refresh target genes
+    document.addEventListener('click', (event) => {
+      if (event.target && event.target.classList.contains('assay-toggle')) {
+        // Add a small delay to ensure the toggle state has been updated
+        setTimeout(() => {
+          const targetsContent = document.getElementById(`content-targets-${name}`);
+          if (targetsContent && !targetsContent.classList.contains('hidden')) {
+            loadTargetGenes();
+          }
+        }, 100);
+      }
+    });
+  });
+</script> 

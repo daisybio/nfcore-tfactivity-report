@@ -2,6 +2,7 @@
 import DCGScoresChart from "./plots/DCGScoresChart.astro";
 import DifferentialExpressionChart from "./plots/DifferentialExpressionChart.astro";
 import TPMBoxplot from "./plots/TPMBoxplot.astro";
+import TargetGenesView from "./plots/TargetGenesView.astro";
 
 export interface Props {
   name: string;
@@ -11,22 +12,80 @@ const { name } = Astro.props;
 ---
 
 <div class="px-6 py-4 bg-gray-50 border-t border-gray-200">
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-    <!-- Activity Across Assays - DCG Scores Chart -->
-    <div class="md:col-span-2">
-      <DCGScoresChart name={name} />
+  <!-- Tab Navigation -->
+  <div class="mb-6">
+    <nav class="flex justify-center space-x-8" aria-label="Tabs">
+      <button id={`tab-plots-${name}`} class="tab-button active whitespace-nowrap py-2 px-1 border-b-2 border-blue-500 font-medium text-sm text-blue-600">
+        Expression Analysis
+      </button>
+      <button id={`tab-targets-${name}`} class="tab-button whitespace-nowrap py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">
+        Target Genes
+      </button>
+    </nav>
+  </div>
+
+  <!-- Tab Content -->
+  <div id={`content-plots-${name}`} class="tab-content active">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <!-- Activity Across Assays - DCG Scores Chart -->
+      <div class="md:col-span-2">
+        <DCGScoresChart name={name} />
+      </div>
+      
+      <!-- Differential Expression Chart -->
+      <div class="md:col-span-2">
+        <DifferentialExpressionChart name={name} />
+      </div>
+      
+      <!-- TPM Expression Levels Chart -->
+      <div class="md:col-span-2">
+        <TPMBoxplot name={name} />
+      </div>
     </div>
-    
-    <!-- Differential Expression Chart -->
-    <div class="md:col-span-2">
-      <DifferentialExpressionChart name={name} />
-    </div>
-    
-    <!-- TPM Expression Levels Chart -->
-    <div class="md:col-span-2">
-      <TPMBoxplot name={name} />
-    </div>
+  </div>
+
+  <div id={`content-targets-${name}`} class="tab-content hidden">
+    <TargetGenesView name={name} />
   </div>
 </div>
 
- 
+
+
+<script define:vars={{ name }}>
+  document.addEventListener('DOMContentLoaded', () => {
+    const plotsTab = document.getElementById(`tab-plots-${name}`);
+    const targetsTab = document.getElementById(`tab-targets-${name}`);
+    const plotsContent = document.getElementById(`content-plots-${name}`);
+    const targetsContent = document.getElementById(`content-targets-${name}`);
+
+    function switchTab(activeTab, activeContent, inactiveTab, inactiveContent) {
+      // Update active tab styles
+      activeTab.classList.add('active', 'border-blue-500', 'text-blue-600');
+      activeTab.classList.remove('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+      
+      // Update inactive tab styles
+      inactiveTab.classList.remove('active', 'border-blue-500', 'text-blue-600');
+      inactiveTab.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+
+      // Update content visibility
+      activeContent.classList.remove('hidden');
+      activeContent.classList.add('active');
+      
+      inactiveContent.classList.add('hidden');
+      inactiveContent.classList.remove('active');
+    }
+
+    plotsTab.addEventListener('click', () => {
+      switchTab(plotsTab, plotsContent, targetsTab, targetsContent);
+    });
+
+    targetsTab.addEventListener('click', () => {
+      switchTab(targetsTab, targetsContent, plotsTab, plotsContent);
+      // Load target genes when the tab is clicked
+      const loadTargetGenesFunc = window[`loadTargetGenes_${name}`];
+      if (loadTargetGenesFunc) {
+        loadTargetGenesFunc();
+      }
+    });
+  });
+</script>
