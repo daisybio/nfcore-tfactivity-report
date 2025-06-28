@@ -1,4 +1,6 @@
 ---
+import TranscriptionFactorDetails from "./TranscriptionFactorDetails.astro";
+
 export interface Props {
   rank: number;
   name: string;
@@ -45,52 +47,7 @@ const panelId = `panel-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
   
   <!-- Expandable Content -->
   <div class="expansion-content overflow-hidden transition-all duration-300 ease-in-out" style="max-height: 0;">
-    <div class="px-6 py-4 bg-gray-50 border-t border-gray-200">
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <!-- Binding Information -->
-        <div>
-          <h4 class="font-semibold text-gray-800 mb-2">Binding Sites</h4>
-          <ul class="text-sm text-gray-600 space-y-1">
-            <li>• Promoter regions: 45 predicted sites</li>
-            <li>• Enhancer regions: 23 validated sites</li>
-            <li>• TFBS motif: CAGGTG consensus</li>
-          </ul>
-        </div>
-        
-        <!-- Target Genes -->
-        <div>
-          <h4 class="font-semibold text-gray-800 mb-2">Target Genes</h4>
-          <ul class="text-sm text-gray-600 space-y-1">
-            <li>• Primary targets: 127 genes</li>
-            <li>• Secondary targets: 89 genes</li>
-            <li>• Pathway enrichment: Cell cycle regulation</li>
-          </ul>
-        </div>
-        
-        <!-- Activity Across Assays -->
-        <div class="md:col-span-2">
-          <h4 class="font-semibold text-gray-800 mb-2">Activity Across Assays</h4>
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-            <div class="bg-white p-2 rounded border">
-              <div class="font-medium text-gray-700">H3K27ac</div>
-              <div class="text-blue-600 font-semibold">0.652</div>
-            </div>
-            <div class="bg-white p-2 rounded border">
-              <div class="font-medium text-gray-700">H3K4me3</div>
-              <div class="text-blue-600 font-semibold">0.423</div>
-            </div>
-            <div class="bg-white p-2 rounded border">
-              <div class="font-medium text-gray-700">chromHMM_enhancers</div>
-              <div class="text-blue-600 font-semibold">0.789</div>
-            </div>
-            <div class="bg-white p-2 rounded border">
-              <div class="font-medium text-gray-700">chromHMM_promoters</div>
-              <div class="text-blue-600 font-semibold">0.345</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <TranscriptionFactorDetails name={name} />
   </div>
 </div>
 

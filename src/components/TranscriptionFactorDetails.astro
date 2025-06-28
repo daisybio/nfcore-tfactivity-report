@@ -1,0 +1,111 @@
+---
+import rankingData from "../assets/ranking.json";
+
+export interface Props {
+  name: string;
+}
+
+const { name } = Astro.props;
+
+// Get scores for this transcription factor across all assays
+const tfScores = Object.entries(rankingData as any).reduce((acc, [assay, tfs]) => {
+  if ((tfs as any)[name] !== undefined) {
+    acc[assay] = (tfs as any)[name];
+  }
+  return acc;
+}, {} as Record<string, number>);
+
+const chartId = `chart-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+---
+
+<div class="px-6 py-4 bg-gray-50 border-t border-gray-200">
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <!-- Binding Information -->
+    <div>
+      <h4 class="font-semibold text-gray-800 mb-2">Binding Sites</h4>
+      <ul class="text-sm text-gray-600 space-y-1">
+        <li>• Promoter regions: 45 predicted sites</li>
+        <li>• Enhancer regions: 23 validated sites</li>
+        <li>• TFBS motif: CAGGTG consensus</li>
+      </ul>
+    </div>
+    
+    <!-- Target Genes -->
+    <div>
+      <h4 class="font-semibold text-gray-800 mb-2">Target Genes</h4>
+      <ul class="text-sm text-gray-600 space-y-1">
+        <li>• Primary targets: 127 genes</li>
+        <li>• Secondary targets: 89 genes</li>
+        <li>• Pathway enrichment: Cell cycle regulation</li>
+      </ul>
+    </div>
+    
+    <!-- Activity Across Assays - Plotly Chart -->
+    <div class="md:col-span-2">
+      <h4 class="font-semibold text-gray-800 mb-2">Activity Across Assays</h4>
+      <div id={chartId} style="height: 300px;"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.plot.ly/plotly-3.0.1.min.js" charset="utf-8"></script>
+
+<script define:vars={{ chartId, tfScores, name }}>
+  
+  // Prepare data for Plotly
+  const assays = Object.keys(tfScores);
+  const scores = Object.values(tfScores);
+  
+  const data = [{
+    x: scores,
+    y: assays,
+    type: 'bar',
+    orientation: 'h',
+    marker: {
+      color: '#2563eb', // Blue-600 to match the theme
+      opacity: 0.8
+    },
+    text: scores.map(score => score.toFixed(3)),
+    textposition: 'auto',
+    hovertemplate: '<b>%{y}</b><br>DCG Score: %{x:.3f}<extra></extra>'
+  }];
+  
+  const layout = {
+    title: {
+      text: `${name} DCG Scores by Assay`,
+      font: { size: 14, color: '#374151' }
+    },
+    xaxis: {
+      title: 'DCG Score (Discounted Cumulative Gain)',
+      range: [0, Math.max(...scores) * 1.1],
+      font: { size: 12 }
+    },
+    yaxis: {
+      title: 'Assay Type',
+      font: { size: 12 },
+      automargin: true
+    },
+    margin: {
+      l: 120,
+      r: 30,
+      t: 50,
+      b: 60
+    },
+    plot_bgcolor: 'rgba(0,0,0,0)', // Transparent background
+    paper_bgcolor: 'rgba(0,0,0,0)', // Transparent background
+    showlegend: false
+  };
+  
+  const config = {
+    responsive: true,
+    displayModeBar: false
+  };
+  
+  // Create the plot when the DOM is ready
+  document.addEventListener('DOMContentLoaded', () => {
+    const chartElement = document.getElementById(chartId);
+    if (chartElement) {
+      Plotly.newPlot(chartId, data, layout, config);
+    }
+  });
+</script> 
