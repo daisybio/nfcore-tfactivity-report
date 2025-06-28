@@ -11,3 +11,5 @@ Implement a clean, scientific user interface, that is suitable for usage by both
 The entire app should take up 1200px width at most, and if the screen is wider, whitespace should be shown to the left and right symmetrically.
 
 Do not run the application (npm run dev), I have an instance running all the time. If you want to check if your code produces errors, you may build the report (npm run build).
+
+The app should compile to a completely static page in the end, that a user can view on their computer with just a mouse click. So you must not include any server-side logic.
