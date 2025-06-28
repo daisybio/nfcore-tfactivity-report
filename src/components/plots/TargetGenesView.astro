@@ -25,7 +25,7 @@ const { name } = Astro.props;
     <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
       <p class="text-sm text-blue-800">
         <span class="font-medium">Note:</span> Gene rankings are calculated by averaging scores across currently active assays. 
-        Toggle assays above to see how rankings change.
+        Toggle assays above to see how rankings change. Click on any gene to see detailed interaction information.
       </p>
     </div>
     
@@ -51,6 +51,8 @@ const { name } = Astro.props;
         Loading target genes...
       </div>
     </div>
+    
+
   </div>
 </div>
 
@@ -95,6 +97,35 @@ const { name } = Astro.props;
 
   .slider:focus::-webkit-slider-thumb {
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+  }
+
+  /* Gene details panel styling */
+  .gene-details-panel {
+    overflow: hidden;
+    transition: all 0.3s ease-in-out;
+  }
+  
+  .gene-details-panel.hidden {
+    max-height: 0;
+    opacity: 0;
+  }
+  
+  .gene-details-panel:not(.hidden) {
+    max-height: 1000px;
+    opacity: 1;
+  }
+
+  .gene-row {
+    transition: all 0.2s ease-in-out;
+    border: 1px solid transparent;
+  }
+
+  .gene-row:hover .font-semibold {
+    color: #2563eb !important;
+  }
+
+  .target-gene-item {
+    border-radius: 0.5rem;
   }
 </style>
 
@@ -178,19 +209,20 @@ const { name } = Astro.props;
         const targetGenesContainer = document.getElementById(`target-genes-${name}`);
         if (targetGenesContainer && averagedGenes.length > 0) {
           targetGenesContainer.innerHTML = `
-            <div class="space-y-2">
+            <div class="space-y-1">
               ${averagedGenes.map((item, index) => `
-                <div class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors duration-150">
-                  <div class="flex items-center space-x-3">
-                    <span class="font-medium text-gray-700 text-sm w-6">#${index + 1}</span>
-                    <a 
-                      href="/tf/${name.toLowerCase()}/target/${item.gene.toLowerCase()}" 
-                      class="font-semibold text-gray-900 hover:text-blue-600 transition-colors duration-150"
-                    >
-                      ${item.gene}
-                    </a>
+                <div class="target-gene-item">
+                  <div class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors duration-150 gene-row cursor-pointer" data-gene="${item.gene}" onclick="showTargetGeneDetails('${item.gene}', ${index + 1})">
+                    <div class="flex items-center space-x-3">
+                      <span class="font-medium text-gray-700 text-sm w-6">#${index + 1}</span>
+                      <span class="font-semibold text-gray-900">${item.gene}</span>
+                    </div>
+                    <div class="text-sm font-medium text-blue-600">${item.avgScore.toFixed(3)}</div>
                   </div>
-                  <div class="text-sm font-medium text-blue-600">${item.avgScore.toFixed(3)}</div>
+                  <!-- Expansion panel placeholder for this gene -->
+                  <div id="gene-details-${item.gene}-${name}" class="gene-details-panel hidden">
+                    <!-- Content will be populated by JavaScript -->
+                  </div>
                 </div>
               `).join('')}
             </div>
@@ -246,6 +278,221 @@ const { name } = Astro.props;
 
     // Expose loadTargetGenes globally for the parent component
     window[`loadTargetGenes_${name}`] = loadTargetGenes;
+
+    // Function to show target gene details in inline expansion panel
+    window.showTargetGeneDetails = async function(targetGene, rank) {
+      try {
+        // Close any currently open panels
+        document.querySelectorAll('.gene-details-panel').forEach(panel => {
+          panel.classList.add('hidden');
+        });
+        
+        // Remove active styling from all gene rows
+        document.querySelectorAll('.gene-row').forEach(row => {
+          row.classList.remove('bg-blue-100', 'border-blue-200');
+          row.classList.add('bg-gray-50');
+        });
+
+        const response = await fetch(`/transcription_factors/${name}.json`);
+        const tfData = await response.json();
+        const targetGenesData = tfData.target_genes || {};
+        
+        // Calculate scores for this target gene across all assays
+        const geneScores = {};
+        const activeAssays = getActiveAssays();
+        
+        // Get scores from all assays (not just active ones for complete picture)
+        Object.keys(targetGenesData).forEach(assay => {
+          const score = targetGenesData[assay][targetGene];
+          if (score !== undefined) {
+            geneScores[assay] = score;
+          }
+        });
+
+        // Calculate average score from active assays
+        let activeTotal = 0;
+        let activeCount = 0;
+        activeAssays.forEach(assay => {
+          if (geneScores[assay] !== undefined) {
+            activeTotal += geneScores[assay];
+            activeCount++;
+          }
+        });
+        const avgScore = activeCount > 0 ? (activeTotal / activeCount) : 0;
+
+        // Get related targets (top 10 other targets from this TF)
+        const allGeneScores = {};
+        const allGeneAssayCounts = {};
+        
+        activeAssays.forEach(assay => {
+          const assayData = targetGenesData[assay] || {};
+          Object.entries(assayData).forEach(([gene, score]) => {
+            if (gene !== targetGene) {
+              if (!allGeneScores[gene]) {
+                allGeneScores[gene] = 0;
+                allGeneAssayCounts[gene] = 0;
+              }
+              allGeneScores[gene] += score;
+              allGeneAssayCounts[gene]++;
+            }
+          });
+        });
+
+        const relatedTargets = Object.entries(allGeneScores)
+          .map(([gene, totalScore]) => ({
+            gene,
+            avgScore: totalScore / allGeneAssayCounts[gene]
+          }))
+          .sort((a, b) => b.avgScore - a.avgScore)
+          .slice(0, 10);
+
+        // Find the target panel for this gene
+        const targetPanel = document.getElementById(`gene-details-${targetGene}-${name}`);
+        if (!targetPanel) {
+          console.error(`Panel not found for gene: ${targetGene}`);
+          return;
+        }
+
+        // Highlight the selected gene row
+        const targetRow = document.querySelector(`[data-gene="${targetGene}"]`);
+        if (targetRow) {
+          targetRow.classList.remove('bg-gray-50');
+          targetRow.classList.add('bg-blue-100', 'border-blue-200');
+        }
+
+        // Populate the panel content
+        targetPanel.innerHTML = `
+          <div class="mt-2 bg-white border border-gray-200 rounded-lg shadow-sm">
+            <!-- Panel Header -->
+            <div class="px-4 py-3 border-b border-gray-200 bg-gray-50 rounded-t-lg">
+              <div class="flex items-center justify-between">
+                <div>
+                  <h5 class="text-md font-semibold text-gray-800">${name} → ${targetGene}</h5>
+                  <p class="text-xs text-gray-600">Transcription Factor - Target Gene Interaction</p>
+                </div>
+                <div class="flex items-center space-x-3">
+                  <a 
+                    href="https://www.genecards.org/cgi-bin/carddisp.pl?gene=${targetGene}"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="inline-flex items-center text-gray-600 hover:text-gray-800 transition-colors duration-150"
+                  >
+                    <img src="/genecards.ico" alt="GeneCards" class="w-3 h-3 mr-1" />
+                    <span class="text-xs">GeneCards</span>
+                  </a>
+                  <button 
+                    onclick="closeGeneDetails('${targetGene}')"
+                    class="text-gray-400 hover:text-gray-600 transition-colors duration-150 p-1"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Panel Content -->
+            <div class="px-4 py-3">
+              <div class="space-y-4">
+                <!-- Summary Stats -->
+                <div class="grid grid-cols-3 gap-3">
+                  <div class="bg-blue-50 p-2 rounded text-center">
+                    <div class="text-lg font-bold text-blue-600">${avgScore.toFixed(3)}</div>
+                    <div class="text-xs text-blue-800">Avg Score</div>
+                  </div>
+                  <div class="bg-green-50 p-2 rounded text-center">
+                    <div class="text-lg font-bold text-green-600">#${rank}</div>
+                    <div class="text-xs text-green-800">Rank</div>
+                  </div>
+                  <div class="bg-purple-50 p-2 rounded text-center">
+                    <div class="text-lg font-bold text-purple-600">${Object.keys(geneScores).length}</div>
+                    <div class="text-xs text-purple-800">Assays</div>
+                  </div>
+                </div>
+
+                <!-- Scores by Assay -->
+                <div>
+                  <h6 class="font-medium text-gray-800 mb-2 text-sm">Scores by Assay</h6>
+                  <div class="bg-gray-50 border border-gray-200 rounded overflow-hidden">
+                    <div class="divide-y divide-gray-200">
+                      ${Object.entries(geneScores).map(([assay, score]) => {
+                        const isActive = activeAssays.includes(assay);
+                        return `
+                          <div class="px-3 py-2 flex items-center justify-between text-sm ${isActive ? 'bg-blue-50' : 'bg-gray-50'}">
+                            <div class="flex items-center space-x-2">
+                              <span class="font-medium text-gray-900">${assay}</span>
+                              ${isActive ? '<span class="px-1 py-0.5 text-xs bg-blue-100 text-blue-800 rounded">Active</span>' : '<span class="px-1 py-0.5 text-xs bg-gray-200 text-gray-600 rounded">Inactive</span>'}
+                            </div>
+                            <span class="font-medium ${isActive ? 'text-blue-600' : 'text-gray-600'}">${score.toFixed(3)}</span>
+                          </div>
+                        `;
+                      }).join('')}
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Related Targets -->
+                ${relatedTargets.length > 0 ? `
+                  <div>
+                    <h6 class="font-medium text-gray-800 mb-2 text-sm">Other Top Targets</h6>
+                    <div class="bg-gray-50 border border-gray-200 rounded overflow-hidden max-h-32 overflow-y-auto">
+                      <div class="divide-y divide-gray-200">
+                        ${relatedTargets.slice(0, 5).map((target, index) => `
+                          <div class="px-3 py-1.5 flex items-center justify-between hover:bg-gray-100 text-sm">
+                            <div class="flex items-center space-x-2">
+                              <span class="text-gray-500 w-4">#${index + 1}</span>
+                              <button 
+                                class="font-medium text-gray-900 hover:text-blue-600 transition-colors duration-150"
+                                onclick="showTargetGeneDetails('${target.gene}', ${index + 2})"
+                              >
+                                ${target.gene}
+                              </button>
+                            </div>
+                            <span class="font-medium text-gray-600">${target.avgScore.toFixed(3)}</span>
+                          </div>
+                        `).join('')}
+                      </div>
+                    </div>
+                  </div>
+                ` : ''}
+              </div>
+            </div>
+          </div>
+        `;
+
+        // Show the panel
+        targetPanel.classList.remove('hidden');
+        
+        // Smooth scroll to the panel
+        setTimeout(() => {
+          targetPanel.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'nearest' 
+          });
+        }, 100);
+        
+      } catch (error) {
+        console.error('Error loading target gene details:', error);
+        alert('Error loading target gene details. Please try again.');
+      }
+    };
+
+    // Function to close gene details panel
+    window.closeGeneDetails = function(targetGene) {
+      // Hide the panel
+      const panel = document.getElementById(`gene-details-${targetGene}-${name}`);
+      if (panel) {
+        panel.classList.add('hidden');
+      }
+      
+      // Remove active styling from the gene row
+      const targetRow = document.querySelector(`[data-gene="${targetGene}"]`);
+      if (targetRow) {
+        targetRow.classList.remove('bg-blue-100', 'border-blue-200');
+        targetRow.classList.add('bg-gray-50');
+      }
+    };
 
     // Listen for assay toggle changes to refresh target genes
     document.addEventListener('click', (event) => {
