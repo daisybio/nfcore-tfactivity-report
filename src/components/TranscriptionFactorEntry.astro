@@ -31,7 +31,7 @@ const panelId = `panel-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
             <img src="/genecards.ico" alt="GeneCards" class="w-4 h-4" />
           </a>
           <a 
-            href="#"
+            href={`/tf/${name.toLowerCase()}`}
             class="text-blue-500 hover:text-blue-700 transition-colors duration-150 text-sm"
             title="View details"
             onclick="event.stopPropagation()"

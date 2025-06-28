@@ -115,7 +115,15 @@ const { name } = Astro.props;
     // Function to get currently active assays
     function getActiveAssays() {
       const activeButtons = document.querySelectorAll('.assay-toggle[data-active="true"]');
-      return Array.from(activeButtons).map(button => button.getAttribute('data-assay'));
+      const activeAssays = Array.from(activeButtons).map(button => button.getAttribute('data-assay'));
+      
+      // If no assay toggles are found (e.g., on individual TF pages), use all available assays
+      if (activeAssays.length === 0) {
+        // Return all known assays as fallback
+        return ['chromHMM_enhancers', 'H3K27ac', 'H3K4me3', 'chromHMM_promoters'];
+      }
+      
+      return activeAssays;
     }
 
     // Function to load and display target genes

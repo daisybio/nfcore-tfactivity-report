@@ -5,10 +5,29 @@ import AssayToggleButtons from "../components/AssayToggleButtons.astro";
 import RankingContainer from "../components/RankingContainer.astro";
 ---
 
-<div class="flex justify-center py-8">
-  <img src={logo.src} alt="nf-core/tfactivity Pipeline Logo" class="h-40 w-auto" />
-</div>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="generator" content={Astro.generator} />
+    <title>TF Activity Report</title>
+  </head>
+  <body class="bg-gray-50">
+    <div class="max-w-6xl mx-auto py-8 px-4">
+      <div class="flex justify-center py-8">
+        <img src={logo.src} alt="nf-core/tfactivity Pipeline Logo" class="h-40 w-auto" />
+      </div>
 
-<AssayToggleButtons />
+      <AssayToggleButtons />
 
-<RankingContainer />
+      <RankingContainer />
+    </div>
+  </body>
+</html>
+
+<style>
+  html {
+    font-family: system-ui, sans-serif;
+  }
+</style>
