@@ -284,6 +284,119 @@ const { name } = Astro.props;
     // Expose loadTargetGenes globally for the parent component
     window[`loadTargetGenes_${name}`] = loadTargetGenes;
 
+    // Utility function to render heatmaps
+    function renderHeatmap(containerId, title, data, columns, colorScheme) {
+      const container = document.getElementById(containerId);
+      if (!container || !data || data.length === 0 || !columns || columns.length === 0) {
+        if (container) {
+          container.innerHTML = `
+            <div>
+              <h6 class="font-medium text-gray-800 mb-2 text-sm">${title}</h6>
+              <div class="text-center text-gray-500 py-3 text-sm">No data available for this target gene</div>
+            </div>
+          `;
+        }
+        return;
+      }
+
+      // Find min and max values for color scaling
+      let minValue = Infinity;
+      let maxValue = -Infinity;
+      
+      data.forEach(row => {
+        columns.forEach(column => {
+          const value = row[column];
+          if (value !== null && value !== undefined && !isNaN(value)) {
+            minValue = Math.min(minValue, value);
+            maxValue = Math.max(maxValue, value);
+          }
+        });
+      });
+
+      if (minValue === Infinity || maxValue === -Infinity) {
+        container.innerHTML = `
+          <div>
+            <h6 class="font-medium text-gray-800 mb-2 text-sm">${title}</h6>
+            <div class="text-center text-gray-500 py-3 text-sm">No valid data available for this target gene</div>
+          </div>
+        `;
+        return;
+      }
+
+      // Create color function based on color scheme
+      function getColor(value, normalizedValue) {
+        const intensity = Math.round(255 - (normalizedValue * 155)); // 255 to 100
+        
+        switch (colorScheme.baseColor) {
+          case 'blue':
+            return `rgb(${intensity}, ${intensity}, 255)`;
+          case 'green':
+            return `rgb(${intensity}, 255, ${intensity})`;
+          case 'red':
+            return `rgb(255, ${intensity}, ${intensity})`;
+          default:
+            return `rgb(${intensity}, ${intensity}, 255)`;
+        }
+      }
+
+      let heatmapHtml = `
+        <div>
+          <h6 class="font-medium text-gray-800 mb-2 text-sm">${title}</h6>
+          <div class="bg-white border border-gray-200 rounded overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="min-w-full border-collapse text-xs">
+                <thead>
+                  <tr>
+                    <th class="border border-gray-300 px-2 py-1 bg-gray-50 font-medium text-gray-700 text-left">Assay</th>
+                    ${columns.map(column => `
+                      <th class="border border-gray-300 px-2 py-1 bg-gray-50 font-medium text-gray-700 text-center">${column}</th>
+                    `).join('')}
+                  </tr>
+                </thead>
+                <tbody>
+                  ${data.map(row => `
+                    <tr>
+                      <td class="border border-gray-300 px-2 py-1 bg-gray-50 font-medium text-gray-700">${row.assay.replace('_', ' ')}</td>
+                      ${columns.map(column => {
+                        const value = row[column];
+                        let cellContent = '';
+                        let cellStyle = 'background-color: #f3f4f6;'; // Default gray for N/A
+                        
+                        if (value !== null && value !== undefined && !isNaN(value)) {
+                          // Normalize value to 0-1 range for color mapping
+                          const normalizedValue = (value - minValue) / (maxValue - minValue);
+                          cellStyle = `background-color: ${getColor(value, normalizedValue)};`;
+                          
+                          // Format the value
+                          cellContent = value < 0.001 ? value.toExponential(2) : value.toFixed(4);
+                        } else {
+                          cellContent = 'N/A';
+                        }
+                        
+                        return `<td class="border border-gray-300 px-2 py-1 text-center" style="${cellStyle}">${cellContent}</td>`;
+                      }).join('')}
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="mt-2 flex items-center justify-center space-x-4 text-xs text-gray-600">
+            <div class="flex items-center space-x-1">
+              <div class="w-3 h-3 border border-gray-300" style="background-color: ${colorScheme.lowColor};"></div>
+              <span>Low (${minValue.toExponential(2)})</span>
+            </div>
+            <div class="flex items-center space-x-1">
+              <div class="w-3 h-3 border border-gray-300" style="background-color: ${colorScheme.highColor};"></div>
+              <span>High (${maxValue.toExponential(2)})</span>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      container.innerHTML = heatmapHtml;
+    }
+
     // Function to show target gene details in inline expansion panel
     window.showTargetGeneDetails = async function(targetGene, rank) {
       try {
@@ -339,31 +452,7 @@ const { name } = Astro.props;
         });
         const avgScore = activeCount > 0 ? (activeTotal / activeCount) : 0;
 
-        // Get related targets (top 10 other targets from this TF)
-        const allGeneScores = {};
-        const allGeneAssayCounts = {};
-        
-        activeAssays.forEach(assay => {
-          const assayData = targetGenesData[assay] || {};
-          Object.entries(assayData).forEach(([gene, score]) => {
-            if (gene !== targetGene) {
-              if (!allGeneScores[gene]) {
-                allGeneScores[gene] = 0;
-                allGeneAssayCounts[gene] = 0;
-              }
-              allGeneScores[gene] += score;
-              allGeneAssayCounts[gene]++;
-            }
-          });
-        });
 
-        const relatedTargets = Object.entries(allGeneScores)
-          .map(([gene, totalScore]) => ({
-            gene,
-            avgScore: totalScore / allGeneAssayCounts[gene]
-          }))
-          .sort((a, b) => b.avgScore - a.avgScore)
-          .slice(0, 10);
 
         // Extract affinity data for heatmap
         const affinityData = tfData.tg_affinities || {};
@@ -539,290 +628,35 @@ const { name } = Astro.props;
 
                 <!-- Target Gene Affinity Sums Heatmap -->
                 <div id="affinity-sum-heatmap-${targetGene}-${name}"></div>
-
-                <!-- Related Targets -->
-                ${relatedTargets.length > 0 ? `
-                  <div>
-                    <h6 class="font-medium text-gray-800 mb-2 text-sm">Other Top Targets</h6>
-                    <div class="bg-gray-50 border border-gray-200 rounded overflow-hidden max-h-32 overflow-y-auto">
-                      <div class="divide-y divide-gray-200">
-                        ${relatedTargets.slice(0, 5).map((target, index) => `
-                          <div class="px-3 py-1.5 flex items-center justify-between hover:bg-gray-100 text-sm">
-                            <div class="flex items-center space-x-2">
-                              <span class="text-gray-500 w-4">#${index + 1}</span>
-                              <button 
-                                class="font-medium text-gray-900 hover:text-blue-600 transition-colors duration-150"
-                                onclick="showTargetGeneDetails('${target.gene}', ${index + 2})"
-                              >
-                                ${target.gene}
-                              </button>
-                            </div>
-                            <span class="font-medium text-gray-600">${target.avgScore.toFixed(3)}</span>
-                          </div>
-                        `).join('')}
-                      </div>
-                    </div>
-                  </div>
-                ` : ''}
               </div>
             </div>
           </div>
         `;
 
-        // Render the affinities heatmap
-        const affinityHeatmapContainer = document.getElementById(`affinity-heatmap-${targetGene}-${name}`);
-        if (affinityHeatmapContainer && conditions.length > 0 && assaysInAffinities.length > 0) {
-          // Find min and max values for color scaling
-          let minValue = Infinity;
-          let maxValue = -Infinity;
-          affinityMatrix.forEach(row => {
-            conditions.forEach(condition => {
-              const value = row[condition];
-              if (value !== null && value !== undefined && !isNaN(value)) {
-                minValue = Math.min(minValue, value);
-                maxValue = Math.max(maxValue, value);
-              }
-            });
-          });
+        // Render all three heatmaps using the utility function
+        renderHeatmap(
+          `affinity-heatmap-${targetGene}-${name}`,
+          "Target Gene Affinities Across Conditions",
+          affinityMatrix,
+          conditions,
+          { baseColor: 'blue', lowColor: 'rgb(255, 255, 255)', highColor: 'rgb(100, 100, 255)' }
+        );
 
-          if (minValue !== Infinity && maxValue !== -Infinity) {
-            let heatmapHtml = `
-              <div>
-                <h6 class="font-medium text-gray-800 mb-2 text-sm">Target Gene Affinities Across Conditions</h6>
-                <div class="bg-white border border-gray-200 rounded overflow-hidden">
-                  <div class="overflow-x-auto">
-                    <table class="min-w-full border-collapse text-xs">
-                      <thead>
-                        <tr>
-                          <th class="border border-gray-300 px-2 py-1 bg-gray-50 font-medium text-gray-700 text-left">Assay</th>
-                          ${conditions.map(condition => `
-                            <th class="border border-gray-300 px-2 py-1 bg-gray-50 font-medium text-gray-700 text-center">${condition}</th>
-                          `).join('')}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        ${affinityMatrix.map(row => `
-                          <tr>
-                            <td class="border border-gray-300 px-2 py-1 bg-gray-50 font-medium text-gray-700">${row.assay.replace('_', ' ')}</td>
-                            ${conditions.map(condition => {
-                              const value = row[condition];
-                              let cellContent = '';
-                              let cellStyle = 'background-color: #f3f4f6;'; // Default gray for N/A
-                              
-                              if (value !== null && value !== undefined && !isNaN(value)) {
-                                // Normalize value to 0-1 range for color mapping
-                                const normalizedValue = (value - minValue) / (maxValue - minValue);
-                                
-                                // Create a gradient from white (low) to blue (high)
-                                const intensity = Math.round(255 - (normalizedValue * 155)); // 255 to 100
-                                cellStyle = `background-color: rgb(${intensity}, ${intensity}, 255);`;
-                                
-                                // Format the value
-                                cellContent = value < 0.001 ? value.toExponential(2) : value.toFixed(4);
-                              } else {
-                                cellContent = 'N/A';
-                              }
-                              
-                              return `<td class="border border-gray-300 px-2 py-1 text-center" style="${cellStyle}">${cellContent}</td>`;
-                            }).join('')}
-                          </tr>
-                        `).join('')}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-                <div class="mt-2 flex items-center justify-center space-x-4 text-xs text-gray-600">
-                  <div class="flex items-center space-x-1">
-                    <div class="w-3 h-3 border border-gray-300" style="background-color: rgb(255, 255, 255);"></div>
-                    <span>Low (${minValue.toExponential(2)})</span>
-                  </div>
-                  <div class="flex items-center space-x-1">
-                    <div class="w-3 h-3 border border-gray-300" style="background-color: rgb(100, 100, 255);"></div>
-                    <span>High (${maxValue.toExponential(2)})</span>
-                  </div>
-                </div>
-              </div>
-            `;
-            affinityHeatmapContainer.innerHTML = heatmapHtml;
-          } else {
-            affinityHeatmapContainer.innerHTML = `
-              <div>
-                <h6 class="font-medium text-gray-800 mb-2 text-sm">Target Gene Affinities</h6>
-                <div class="text-center text-gray-500 py-3 text-sm">No affinity data available for this target gene</div>
-              </div>
-            `;
-          }
-        }
+        renderHeatmap(
+          `affinity-ratio-heatmap-${targetGene}-${name}`,
+          "Target Gene Affinity Ratios",
+          affinityRatioMatrix,
+          ratioPairings,
+          { baseColor: 'green', lowColor: 'rgb(255, 255, 255)', highColor: 'rgb(100, 255, 100)' }
+        );
 
-        // Render the affinity ratios heatmap
-        const affinityRatioHeatmapContainer = document.getElementById(`affinity-ratio-heatmap-${targetGene}-${name}`);
-        if (affinityRatioHeatmapContainer && ratioPairings.length > 0 && assaysInRatios.length > 0) {
-          // Find min and max values for color scaling
-          let minRatioValue = Infinity;
-          let maxRatioValue = -Infinity;
-          affinityRatioMatrix.forEach(row => {
-            ratioPairings.forEach(pairing => {
-              const value = row[pairing];
-              if (value !== null && value !== undefined && !isNaN(value)) {
-                minRatioValue = Math.min(minRatioValue, value);
-                maxRatioValue = Math.max(maxRatioValue, value);
-              }
-            });
-          });
-
-          if (minRatioValue !== Infinity && maxRatioValue !== -Infinity) {
-            let ratioHeatmapHtml = `
-              <div>
-                <h6 class="font-medium text-gray-800 mb-2 text-sm">Target Gene Affinity Ratios</h6>
-                <div class="bg-white border border-gray-200 rounded overflow-hidden">
-                  <div class="overflow-x-auto">
-                    <table class="min-w-full border-collapse text-xs">
-                      <thead>
-                        <tr>
-                          <th class="border border-gray-300 px-2 py-1 bg-gray-50 font-medium text-gray-700 text-left">Assay</th>
-                          ${ratioPairings.map(pairing => `
-                            <th class="border border-gray-300 px-2 py-1 bg-gray-50 font-medium text-gray-700 text-center">${pairing}</th>
-                          `).join('')}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        ${affinityRatioMatrix.map(row => `
-                          <tr>
-                            <td class="border border-gray-300 px-2 py-1 bg-gray-50 font-medium text-gray-700">${row.assay.replace('_', ' ')}</td>
-                            ${ratioPairings.map(pairing => {
-                              const value = row[pairing];
-                              let cellContent = '';
-                              let cellStyle = 'background-color: #f3f4f6;'; // Default gray for N/A
-                              
-                              if (value !== null && value !== undefined && !isNaN(value)) {
-                                // Normalize value to 0-1 range for color mapping
-                                const normalizedValue = (value - minRatioValue) / (maxRatioValue - minRatioValue);
-                                
-                                // Create a gradient from white (low) to green (high) for ratios
-                                const intensity = Math.round(255 - (normalizedValue * 155)); // 255 to 100
-                                cellStyle = `background-color: rgb(${intensity}, 255, ${intensity});`;
-                                
-                                // Format the value
-                                cellContent = value < 0.001 ? value.toExponential(2) : value.toFixed(4);
-                              } else {
-                                cellContent = 'N/A';
-                              }
-                              
-                              return `<td class="border border-gray-300 px-2 py-1 text-center" style="${cellStyle}">${cellContent}</td>`;
-                            }).join('')}
-                          </tr>
-                        `).join('')}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-                <div class="mt-2 flex items-center justify-center space-x-4 text-xs text-gray-600">
-                  <div class="flex items-center space-x-1">
-                    <div class="w-3 h-3 border border-gray-300" style="background-color: rgb(255, 255, 255);"></div>
-                    <span>Low (${minRatioValue.toExponential(2)})</span>
-                  </div>
-                  <div class="flex items-center space-x-1">
-                    <div class="w-3 h-3 border border-gray-300" style="background-color: rgb(100, 255, 100);"></div>
-                    <span>High (${maxRatioValue.toExponential(2)})</span>
-                  </div>
-                </div>
-              </div>
-            `;
-            affinityRatioHeatmapContainer.innerHTML = ratioHeatmapHtml;
-          } else {
-            affinityRatioHeatmapContainer.innerHTML = `
-              <div>
-                <h6 class="font-medium text-gray-800 mb-2 text-sm">Target Gene Affinity Ratios</h6>
-                <div class="text-center text-gray-500 py-3 text-sm">No affinity ratio data available for this target gene</div>
-              </div>
-            `;
-          }
-        }
-
-        // Render the affinity sums heatmap
-        const affinitySumHeatmapContainer = document.getElementById(`affinity-sum-heatmap-${targetGene}-${name}`);
-        if (affinitySumHeatmapContainer && sumPairings.length > 0 && assaysInSums.length > 0) {
-          // Find min and max values for color scaling
-          let minSumValue = Infinity;
-          let maxSumValue = -Infinity;
-          affinitySumMatrix.forEach(row => {
-            sumPairings.forEach(pairing => {
-              const value = row[pairing];
-              if (value !== null && value !== undefined && !isNaN(value)) {
-                minSumValue = Math.min(minSumValue, value);
-                maxSumValue = Math.max(maxSumValue, value);
-              }
-            });
-          });
-
-          if (minSumValue !== Infinity && maxSumValue !== -Infinity) {
-            let sumHeatmapHtml = `
-              <div>
-                <h6 class="font-medium text-gray-800 mb-2 text-sm">Target Gene Affinity Sums</h6>
-                <div class="bg-white border border-gray-200 rounded overflow-hidden">
-                  <div class="overflow-x-auto">
-                    <table class="min-w-full border-collapse text-xs">
-                      <thead>
-                        <tr>
-                          <th class="border border-gray-300 px-2 py-1 bg-gray-50 font-medium text-gray-700 text-left">Assay</th>
-                          ${sumPairings.map(pairing => `
-                            <th class="border border-gray-300 px-2 py-1 bg-gray-50 font-medium text-gray-700 text-center">${pairing}</th>
-                          `).join('')}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        ${affinitySumMatrix.map(row => `
-                          <tr>
-                            <td class="border border-gray-300 px-2 py-1 bg-gray-50 font-medium text-gray-700">${row.assay.replace('_', ' ')}</td>
-                            ${sumPairings.map(pairing => {
-                              const value = row[pairing];
-                              let cellContent = '';
-                              let cellStyle = 'background-color: #f3f4f6;'; // Default gray for N/A
-                              
-                              if (value !== null && value !== undefined && !isNaN(value)) {
-                                // Normalize value to 0-1 range for color mapping
-                                const normalizedValue = (value - minSumValue) / (maxSumValue - minSumValue);
-                                
-                                // Create a gradient from white (low) to orange (high) for sums
-                                const intensity = Math.round(255 - (normalizedValue * 155)); // 255 to 100
-                                cellStyle = `background-color: rgb(255, ${intensity}, ${intensity});`;
-                                
-                                // Format the value
-                                cellContent = value < 0.001 ? value.toExponential(2) : value.toFixed(4);
-                              } else {
-                                cellContent = 'N/A';
-                              }
-                              
-                              return `<td class="border border-gray-300 px-2 py-1 text-center" style="${cellStyle}">${cellContent}</td>`;
-                            }).join('')}
-                          </tr>
-                        `).join('')}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-                <div class="mt-2 flex items-center justify-center space-x-4 text-xs text-gray-600">
-                  <div class="flex items-center space-x-1">
-                    <div class="w-3 h-3 border border-gray-300" style="background-color: rgb(255, 255, 255);"></div>
-                    <span>Low (${minSumValue.toExponential(2)})</span>
-                  </div>
-                  <div class="flex items-center space-x-1">
-                    <div class="w-3 h-3 border border-gray-300" style="background-color: rgb(255, 100, 100);"></div>
-                    <span>High (${maxSumValue.toExponential(2)})</span>
-                  </div>
-                </div>
-              </div>
-            `;
-            affinitySumHeatmapContainer.innerHTML = sumHeatmapHtml;
-          } else {
-            affinitySumHeatmapContainer.innerHTML = `
-              <div>
-                <h6 class="font-medium text-gray-800 mb-2 text-sm">Target Gene Affinity Sums</h6>
-                <div class="text-center text-gray-500 py-3 text-sm">No affinity sum data available for this target gene</div>
-              </div>
-            `;
-          }
-        }
+        renderHeatmap(
+          `affinity-sum-heatmap-${targetGene}-${name}`,
+          "Target Gene Affinity Sums",
+          affinitySumMatrix,
+          sumPairings,
+          { baseColor: 'red', lowColor: 'rgb(255, 255, 255)', highColor: 'rgb(255, 100, 100)' }
+        );
 
         // Show the panel
         targetPanel.classList.remove('hidden');
