@@ -1,0 +1,38 @@
+{
+    "Core Nextflow options": {
+        "configFiles": "/home/nico/Software/nf-core/tfactivity/nextflow.config, /home/nico/Software/nf-core/tfactivity/testing/nextflow.config",
+        "containerEngine": "docker",
+        "launchDir": "/home/nico/Software/nf-core/tfactivity/testing",
+        "profile": "test,docker",
+        "projectDir": "/home/nico/Software/nf-core/tfactivity",
+        "runName": "silly_franklin",
+        "userName": "nico",
+        "workDir": "/home/nico/Software/nf-core/tfactivity/testing/work"
+    },
+    "Generic options": {
+        "trace_report_suffix": "2025-06-29_13-46-35"
+    },
+    "Input/output options": {
+        "counts": "https://raw.githubusercontent.com/nf-core/test-datasets/tfactivity/rna-seq/Gene_id.txt",
+        "counts_design": "https://raw.githubusercontent.com/nf-core/test-datasets/tfactivity/samplesheet/samplesheet_rnaseq.csv",
+        "input": "https://raw.githubusercontent.com/nf-core/test-datasets/tfactivity/samplesheet/samplesheet_peaks.csv",
+        "input_bam": "https://raw.githubusercontent.com/nf-core/test-datasets/tfactivity/samplesheet/samplesheet_bam.csv",
+        "outdir": "results"
+    },
+    "Institutional config options": {
+        "config_profile_description": "Minimal test dataset to check pipeline function",
+        "config_profile_name": "Test profile"
+    },
+    "Reference genome options": {
+        "blacklist": "/home/nico/Software/nf-core/tfactivity/assets/blacklists/mm10-blacklist.bed",
+        "fasta": "https://github.com/nf-core/test-datasets/raw/tfactivity/reference/chr1.fa.gz",
+        "genome": "mm10",
+        "gtf": "https://github.com/nf-core/test-datasets/raw/tfactivity/reference/chr1.gtf.gz",
+        "snps": "https://github.com/nf-core/test-datasets/raw/tfactivity/reference/snps_chr1.bed.gz",
+        "taxon_id": 10090
+    },
+    "SNEEP options": {
+        "sneep_motif_file": "/home/nico/Software/nf-core/tfactivity/assets/sneep_transfac_mouse_218.txt",
+        "sneep_scale_file": "/home/nico/Software/nf-core/tfactivity/assets/sneep_scale_mouse_218.txt"
+    }
+}

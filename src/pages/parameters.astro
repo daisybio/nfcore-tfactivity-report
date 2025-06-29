@@ -1,0 +1,88 @@
+---
+import "../styles/global.css";
+import logo from "../assets/images/nf-core-tfactivity_logo_light.png";
+import params from "../assets/params.json";
+
+// Type the params properly
+const typedParams = params as Record<string, Record<string, string | number>>;
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="generator" content={Astro.generator} />
+    <title>Pipeline Parameters - nf-core/tfactivity report</title>
+  </head>
+  <body class="bg-gray-50">
+    <div class="max-w-6xl mx-auto py-8 px-4">
+      <div class="flex justify-center py-8">
+        <img src={logo.src} alt="nf-core/tfactivity Pipeline Logo" class="h-40 w-auto" />
+      </div>
+
+      <!-- Navigation -->
+      <div class="max-w-4xl mx-auto px-4 mb-8">
+        <nav class="flex justify-center space-x-6">
+          <a href="/" class="text-blue-600 hover:text-blue-800 font-medium">Rankings</a>
+          <a href="/parameters" class="text-gray-800 font-bold">Parameters</a>
+        </nav>
+      </div>
+
+      <div class="max-w-4xl mx-auto px-4 py-6">
+        <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center">Pipeline Parameters</h1>
+        
+        <p class="text-gray-600 text-center mb-8">
+          Configuration parameters used for this nf-core/tfactivity pipeline run
+        </p>
+
+        <div class="space-y-8">
+          {Object.entries(typedParams).map(([sectionName, sectionParams]) => (
+            <div class="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+              <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                <h2 class="text-xl font-semibold text-gray-800">{sectionName}</h2>
+              </div>
+              <div class="px-6 py-4">
+                <div class="space-y-3">
+                  {Object.entries(sectionParams).map(([paramKey, paramValue]) => (
+                    <div class="flex flex-col sm:flex-row sm:justify-between border-b border-gray-100 pb-3 last:border-b-0 last:pb-0">
+                      <dt class="font-medium text-gray-700 mb-1 sm:mb-0">{paramKey}</dt>
+                      <dd class="text-gray-900 font-mono text-sm break-all max-w-md">
+                        {typeof paramValue === 'string' && (paramValue.startsWith('http://') || paramValue.startsWith('https://')) ? (
+                          <a href={paramValue} target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 underline">
+                            {paramValue}
+                          </a>
+                        ) : (
+                          String(paramValue)
+                        )}
+                      </dd>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <!-- Back to Rankings Button -->
+        <div class="mt-12 text-center">
+          <a 
+            href="/" 
+            class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+          >
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+            </svg>
+            Back to Rankings
+          </a>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
+
+<style>
+  html {
+    font-family: system-ui, sans-serif;
+  }
+</style> 
