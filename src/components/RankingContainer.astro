@@ -2,10 +2,20 @@
 import rankingData from "../assets/ranking.json";
 import metadata from "../assets/metadata.json";
 import TranscriptionFactorEntry from "./TranscriptionFactorEntry.astro";
+import AssayToggleButtons from "./AssayToggleButtons.astro";
 ---
 
 <div class="max-w-4xl mx-auto px-4 py-6">
   <h2 class="text-2xl font-bold text-gray-800 mb-4 text-center">Transcription Factor Rankings</h2>
+  
+  <!-- Assay Selector with Note -->
+  <div class="mb-6">
+    <p class="text-sm text-gray-600 mb-3 text-center">
+      Select which chromatin accessibility assays to include in the ranking calculation. <br />
+      Rankings are based on average scores across selected assays.
+    </p>
+    <AssayToggleButtons />
+  </div>
   
   <!-- Search Field -->
   <div class="mb-4">
