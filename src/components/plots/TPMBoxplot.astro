@@ -18,13 +18,20 @@ const chartId = `tpm-chart-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
   // Function to create TPM boxplot
   async function createTPMBoxplot() {
     try {
-      const response = await fetch(`/transcription_factors/${name}.json`);
-      if (!response.ok) {
-        console.warn(`Could not load data for ${name}: ${response.status}`);
-        return;
+      // Check if data is available in the global cache first
+      let tfData = null;
+      if (window.tfDataCache && window.tfDataCache[name]) {
+        tfData = window.tfDataCache[name];
+      } else {
+        // Fallback to fetch if cache is not available
+        const response = await fetch(`/transcription_factors/${name}.json`);
+        if (!response.ok) {
+          console.warn(`Could not load data for ${name}: ${response.status}`);
+          return;
+        }
+        tfData = await response.json();
       }
       
-      const tfData = await response.json();
       const tpmData = tfData.tpm || {};
       
       const conditions = Object.keys(tpmData);

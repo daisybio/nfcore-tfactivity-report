@@ -160,13 +160,20 @@ const { name } = Astro.props;
     // Function to load and display target genes
     async function loadTargetGenes() {
       try {
-        const response = await fetch(`/transcription_factors/${name}.json`);
-        if (!response.ok) {
-          console.warn(`Could not load data for ${name}: ${response.status}`);
-          return;
+        // Check if data is available in the global cache first
+        let tfData = null;
+        if (window.tfDataCache && window.tfDataCache[name]) {
+          tfData = window.tfDataCache[name];
+        } else {
+          // Fallback to fetch if cache is not available
+          const response = await fetch(`/transcription_factors/${name}.json`);
+          if (!response.ok) {
+            console.warn(`Could not load data for ${name}: ${response.status}`);
+            return;
+          }
+          tfData = await response.json();
         }
         
-        const tfData = await response.json();
         const targetGenesData = tfData.target_genes || {};
         
         const activeAssays = getActiveAssays();
@@ -425,8 +432,15 @@ const { name } = Astro.props;
           return;
         }
 
-        const response = await fetch(`/transcription_factors/${name}.json`);
-        const tfData = await response.json();
+        // Check if data is available in the global cache first
+        let tfData = null;
+        if (window.tfDataCache && window.tfDataCache[name]) {
+          tfData = window.tfDataCache[name];
+        } else {
+          // Fallback to fetch if cache is not available
+          const response = await fetch(`/transcription_factors/${name}.json`);
+          tfData = await response.json();
+        }
         const targetGenesData = tfData.target_genes || {};
         
         // Calculate scores for this target gene across all assays

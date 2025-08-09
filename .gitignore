@@ -8,7 +8,7 @@ src/assets/metadata.json
 src/assets/params.json
 src/assets/ranking.json
 src/assets/regression_coefficients.json
-public/transcription_factors/*.json
+src/assets/transcription_factors/*.json
 
 # dependencies
 node_modules/

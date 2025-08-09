@@ -18,13 +18,20 @@ const chartId = `de-chart-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
   // Function to create differential expression chart
   async function createDifferentialExpressionChart() {
     try {
-      const response = await fetch(`/transcription_factors/${name}.json`);
-      if (!response.ok) {
-        console.warn(`Could not load data for ${name}: ${response.status}`);
-        return;
+      // Check if data is available in the global cache first
+      let tfData = null;
+      if (window.tfDataCache && window.tfDataCache[name]) {
+        tfData = window.tfDataCache[name];
+      } else {
+        // Fallback to fetch if cache is not available
+        const response = await fetch(`/transcription_factors/${name}.json`);
+        if (!response.ok) {
+          console.warn(`Could not load data for ${name}: ${response.status}`);
+          return;
+        }
+        tfData = await response.json();
       }
       
-      const tfData = await response.json();
       const differentialExpression = tfData.differential_expression || {};
       
       const comparisons = Object.keys(differentialExpression);
