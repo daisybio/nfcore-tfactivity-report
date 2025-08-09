@@ -1,8 +1,13 @@
 ---
-import rankingData from "../assets/ranking.json";
 import metadata from "../assets/metadata.json";
 import TranscriptionFactorEntry from "./TranscriptionFactorEntry.astro";
 import AssayToggleButtons from "./AssayToggleButtons.astro";
+
+export interface Props {
+  overviewData: any;
+}
+
+const { overviewData } = Astro.props;
 ---
 
 <div class="max-w-4xl mx-auto px-4 py-6">
@@ -59,6 +64,7 @@ import AssayToggleButtons from "./AssayToggleButtons.astro";
             name={tf}
             averageScore={0}
             assayCount={0}
+            overviewData={overviewData}
           />
         </div>
       ))}
@@ -66,7 +72,7 @@ import AssayToggleButtons from "./AssayToggleButtons.astro";
   </div>
 </div>
 
-<script define:vars={{ rankingData }}>
+<script define:vars={{ overviewData }}>
   function calculateRankings() {
     // Get currently active assays
     const activeAssays = Array.from(document.querySelectorAll('.assay-toggle[data-active="true"]'))
@@ -77,18 +83,21 @@ import AssayToggleButtons from "./AssayToggleButtons.astro";
     // Calculate average scores for each transcription factor
     const tfScores = {};
     
-    // Iterate through all transcription factors across all assays
-    Object.keys(rankingData).forEach(assay => {
-      if (activeAssays.includes(assay)) {
-        Object.keys(rankingData[assay]).forEach(tf => {
+    // Iterate through all transcription factors and their DCG scores
+    Object.keys(overviewData).forEach(tf => {
+      const dcgScores = overviewData[tf].dcg || {};
+      
+      // Check each active assay for this TF
+      activeAssays.forEach(assay => {
+        if (dcgScores[assay] !== undefined) {
           if (!tfScores[tf]) {
             tfScores[tf] = { scores: [], total: 0, count: 0 };
           }
-          tfScores[tf].scores.push(rankingData[assay][tf]);
-          tfScores[tf].total += rankingData[assay][tf];
+          tfScores[tf].scores.push(dcgScores[assay]);
+          tfScores[tf].total += dcgScores[assay];
           tfScores[tf].count += 1;
-        });
-      }
+        }
+      });
     });
     
     // Calculate averages and create ranking array

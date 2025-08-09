@@ -1,9 +1,10 @@
 ---
 export interface Props {
   name: string;
+  differentialExpressionData?: any;
 }
 
-const { name } = Astro.props;
+const { name, differentialExpressionData } = Astro.props;
 const chartId = `de-chart-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
 ---
 
@@ -14,34 +15,27 @@ const chartId = `de-chart-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
 
 <script src="https://cdn.plot.ly/plotly-3.0.1.min.js" charset="utf-8"></script>
 
-<script define:vars={{ chartId, name }}>
+<script define:vars={{ chartId, name, differentialExpressionData }}>
   // Function to create differential expression chart
   async function createDifferentialExpressionChart() {
     try {
-      // Check if data is available in the global cache first
-      let tfData = null;
-      if (window.tfDataCache && window.tfDataCache[name]) {
-        tfData = window.tfDataCache[name];
-      } else {
-        // Fallback to fetch if cache is not available
-        const response = await fetch(`/transcription_factors/${name}.json`);
-        if (!response.ok) {
-          console.warn(`Could not load data for ${name}: ${response.status}`);
-          return;
-        }
-        tfData = await response.json();
-      }
+
       
-      const differentialExpression = tfData.differential_expression || {};
+      // Use the differential expression data passed as prop
+      const differentialExpressionToUse = differentialExpressionData || {};
       
-      const comparisons = Object.keys(differentialExpression);
+      const comparisons = Object.keys(differentialExpressionToUse);
       if (comparisons.length === 0) {
         console.warn(`No differential expression data found for ${name}`);
+        const container = document.getElementById(chartId);
+        if (container) {
+          container.innerHTML = `<div style="padding: 20px; text-align: center; color: #6b7280;">No differential expression data available for ${name}</div>`;
+        }
         return;
       }
       
-      const log2FoldChanges = comparisons.map(comp => differentialExpression[comp]?.log2FoldChange || 0);
-      const pValues = comparisons.map(comp => differentialExpression[comp]?.pvalue || 1);
+      const log2FoldChanges = comparisons.map(comp => differentialExpressionToUse[comp]?.log2FoldChange || 0);
+      const pValues = comparisons.map(comp => differentialExpressionToUse[comp]?.pvalue || 1);
       
       // Color bars based on significance (p < 0.05)
       const barColors = pValues.map(p => p < 0.05 ? '#dc2626' : '#6b7280'); // Red for significant, gray for non-significant
@@ -100,10 +94,20 @@ const chartId = `de-chart-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
       const deChartElement = document.getElementById(chartId);
       if (deChartElement) {
         Plotly.newPlot(chartId, deData, deLayout, config);
+      } else {
+        console.error(`DE chart element not found: ${chartId}`);
+        const container = document.getElementById(chartId);
+        if (container) {
+          container.innerHTML = `<div style="padding: 20px; text-align: center; color: orange;">DE chart element not found: ${chartId}</div>`;
+        }
       }
       
     } catch (error) {
       console.error(`Error loading differential expression data for ${name}:`, error);
+      const container = document.getElementById(chartId);
+      if (container) {
+        container.innerHTML = `<div style="padding: 20px; text-align: center; color: red;">Error creating DE chart: ${error.message}</div>`;
+      }
     }
   }
 

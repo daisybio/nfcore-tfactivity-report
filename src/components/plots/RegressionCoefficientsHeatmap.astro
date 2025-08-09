@@ -1,12 +1,13 @@
 ---
 export interface Props {
   name: string;
+  regressionCoefficients?: any;
 }
 
-const { name } = Astro.props;
+const { name, regressionCoefficients } = Astro.props;
 
-// Import the regression coefficients data
-import regressionCoefficients from '../../assets/regression_coefficients.json';
+// Use the provided regression coefficients
+const coefficients = regressionCoefficients || {};
 ---
 
 <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -35,7 +36,7 @@ import regressionCoefficients from '../../assets/regression_coefficients.json';
   </div>
 </div>
 
-<script define:vars={{ name, regressionCoefficients }}>
+<script define:vars={{ name, coefficients }}>
   document.addEventListener('DOMContentLoaded', () => {
     renderHeatmap();
   });
@@ -45,12 +46,12 @@ import regressionCoefficients from '../../assets/regression_coefficients.json';
     if (!container) return;
 
     // Extract data for the specific transcription factor
-    const conditions = Object.keys(regressionCoefficients);
+    const conditions = Object.keys(coefficients);
     const allAssays = new Set();
     
     // Collect all unique assays
     conditions.forEach(condition => {
-      Object.keys(regressionCoefficients[condition]).forEach(assay => {
+      Object.keys(coefficients[condition]).forEach(assay => {
         allAssays.add(assay);
       });
     });
@@ -74,7 +75,7 @@ import regressionCoefficients from '../../assets/regression_coefficients.json';
       html += `<td class="border border-gray-300 px-3 py-2 bg-gray-50 text-xs font-medium text-gray-700">${assay.replace('_', ' ')}</td>`;
       
       conditions.forEach(condition => {
-        const value = regressionCoefficients[condition]?.[assay]?.[name];
+        const value = coefficients[condition]?.[assay];
         let cellContent = '';
         let bgColor = 'bg-gray-100';
         

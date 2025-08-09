@@ -1,24 +1,23 @@
 ---
 import "../../styles/global.css";
 import TranscriptionFactorDetails from "../../components/TranscriptionFactorDetails.astro";
-import rankingData from "../../assets/ranking.json";
-
-// Import all TF JSON files using glob pattern
-const tfJsonFiles = import.meta.glob('../../assets/transcription_factors/*.json', { 
-  eager: true, 
-  query: '?raw',
-  import: 'default'
-});
 
 export async function getStaticPaths() {
-  // Extract unique TF names from all assays
-  const tfNames = new Set<string>();
-  Object.values(rankingData).forEach((assay: any) => {
-    Object.keys(assay).forEach((tf: string) => tfNames.add(tf));
+  // Import all TF JSON files using glob pattern inside the function
+  const tfJsonFiles = import.meta.glob('../../assets/transcription_factors/*.json', { 
+    eager: true, 
+    query: '?raw',
+    import: 'default'
   });
+
+  // Extract TF names from the TF JSON files instead of overview data
+  const tfNames = Object.keys(tfJsonFiles).map((path: string) => {
+    const fileName = path.split('/').pop()?.replace('.json', '');
+    return fileName;
+  }).filter((name): name is string => Boolean(name));
   
   // Generate paths for each TF
-  return Array.from(tfNames).map((name: string) => ({
+  return tfNames.map((name: string) => ({
     params: { slug: name.toLowerCase() },
     props: { name }
   }));
@@ -30,27 +29,36 @@ interface Props {
 
 const { name }: Props = Astro.props;
 
-// Calculate average score and assay count for this TF
-let totalScore = 0;
-let assayCount = 0;
-Object.values(rankingData).forEach((assay: any) => {
-  if (assay[name] !== undefined) {
-    totalScore += assay[name];
-    assayCount++;
-  }
+// Import TF JSON files again for runtime use
+const tfJsonFiles = import.meta.glob('../../assets/transcription_factors/*.json', { 
+  eager: true, 
+  query: '?raw',
+  import: 'default'
 });
-const averageScore = assayCount > 0 ? totalScore / assayCount : 0;
 
 // Get the TF data from the imported files
-let tfData = null;
+let tfJsonData = null;
 const tfFileName = `../../assets/transcription_factors/${name}.json`;
 if (tfJsonFiles[tfFileName]) {
   try {
-    tfData = JSON.parse(tfJsonFiles[tfFileName] as string);
+    tfJsonData = JSON.parse(tfJsonFiles[tfFileName] as string);
   } catch (error) {
     console.error(`Error parsing JSON for ${name}:`, error);
   }
 }
+
+// Calculate average score and assay count for this TF from the TF-specific data
+let totalScore = 0;
+let assayCount = 0;
+if (tfJsonData && tfJsonData.dcg) {
+  Object.values(tfJsonData.dcg).forEach((score: any) => {
+    if (score !== undefined) {
+      totalScore += score;
+      assayCount++;
+    }
+  });
+}
+const averageScore = assayCount > 0 ? totalScore / assayCount : 0;
 ---
 
 <html lang="en">
@@ -102,18 +110,18 @@ if (tfJsonFiles[tfFileName]) {
 
       <!-- Detailed Content -->
       <div class="bg-white rounded-lg shadow-sm">
-        <TranscriptionFactorDetails name={name} />
+        <TranscriptionFactorDetails name={name} tfData={tfJsonData} />
       </div>
     </div>
 
     <!-- Make TF data available globally for client-side components -->
-    <script define:vars={{ name, tfData }}>
+    <script define:vars={{ name, tfJsonData }}>
       // Store the TF data globally so client-side components can access it
       if (!window.tfDataCache) {
         window.tfDataCache = {};
       }
-      if (tfData) {
-        window.tfDataCache[name] = tfData;
+      if (tfJsonData) {
+        window.tfDataCache[name] = tfJsonData;
       }
     </script>
   </body>

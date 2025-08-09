@@ -1,19 +1,13 @@
 ---
-import rankingData from "../../assets/ranking.json";
-
 export interface Props {
   name: string;
+  dcgScores?: any;
 }
 
-const { name } = Astro.props;
+const { name, dcgScores } = Astro.props;
 
-// Get scores for this transcription factor across all assays
-const tfScores = Object.entries(rankingData as any).reduce((acc, [assay, tfs]) => {
-  if ((tfs as any)[name] !== undefined) {
-    acc[assay] = (tfs as any)[name];
-  }
-  return acc;
-}, {} as Record<string, number>);
+// Use the provided DCG scores
+const tfScores = dcgScores || {};
 
 const chartId = `dcg-chart-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
 ---

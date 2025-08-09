@@ -6,9 +6,10 @@ export interface Props {
   name: string;
   averageScore: number;
   assayCount: number;
+  overviewData?: any;
 }
 
-const { rank, name, averageScore, assayCount } = Astro.props;
+const { rank, name, averageScore, assayCount, overviewData } = Astro.props;
 const panelId = `panel-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
 ---
 
@@ -53,7 +54,7 @@ const panelId = `panel-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
   
   <!-- Expandable Content -->
   <div class="expansion-content overflow-hidden transition-all duration-300 ease-in-out" style="max-height: 0;">
-    <TranscriptionFactorDetails name={name} />
+    <TranscriptionFactorDetails name={name} overviewData={overviewData} />
   </div>
 </div>
 
