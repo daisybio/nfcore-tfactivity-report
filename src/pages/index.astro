@@ -2,6 +2,7 @@
 import "../styles/global.css";
 import logo from "../assets/images/nf-core-tfactivity_logo_light.png";
 import RankingContainer from "../components/RankingContainer.astro";
+import LoadingAnimation from "../components/LoadingAnimation.astro";
 import overviewData from "../assets/overview.json";
 ---
 
@@ -33,8 +34,61 @@ import overviewData from "../assets/overview.json";
         </nav>
       </div>
 
-      <RankingContainer overviewData={overviewData} />
+      <!-- Loading Animation -->
+      <LoadingAnimation 
+        title="Initializing Rankings"
+        subtitle="Processing transcription factor data and calculating scores..."
+        containerId="loading-overlay"
+      />
+
+      <!-- Main Content (initially hidden) -->
+      <div id="main-content" style="display: none;">
+        <RankingContainer overviewData={overviewData} />
+      </div>
     </div>
+
+    <!-- Loading state management script -->
+    <script>
+      // Override the initializeComponent function to handle loading state
+      document.addEventListener('DOMContentLoaded', () => {
+        // Wait for the ranking container to be ready
+        const checkRankingReady = () => {
+          // Check if the ranking container script has executed
+          const rankingContainer = document.getElementById('ranking-container');
+          const loadingOverlay = document.getElementById('loading-overlay');
+          const mainContent = document.getElementById('main-content');
+          
+          if (rankingContainer && loadingOverlay && mainContent) {
+            // Add a small delay to ensure smooth transition
+            setTimeout(() => {
+              // Hide loading animation
+              loadingOverlay.style.transition = 'opacity 0.5s ease-out';
+              loadingOverlay.style.opacity = '0';
+              
+              setTimeout(() => {
+                loadingOverlay.style.display = 'none';
+                
+                // Show main content with fade in
+                mainContent.style.display = 'block';
+                mainContent.style.opacity = '0';
+                mainContent.style.transition = 'opacity 0.5s ease-in';
+                
+                // Trigger the fade in
+                setTimeout(() => {
+                  mainContent.style.opacity = '1';
+                }, 10);
+              }, 500);
+            }, 800); // Give some time for ranking initialization
+          } else {
+            // If not ready yet, check again
+            setTimeout(checkRankingReady, 100);
+          }
+        };
+        
+        // Start checking after DOM is loaded
+        checkRankingReady();
+      });
+    </script>
   </body>
 </html>
 
