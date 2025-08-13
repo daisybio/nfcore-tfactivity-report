@@ -1,0 +1,586 @@
+---
+import "../../../styles/global.css";
+import LoadingAnimation from "../../../components/LoadingAnimation.astro";
+
+export async function getStaticPaths() {
+  // Import all TF JSON files using glob pattern
+  const tfJsonFiles = import.meta.glob('../../../assets/transcription_factors/*.json', { 
+    eager: true, 
+    query: '?raw',
+    import: 'default'
+  });
+
+  const paths: any[] = [];
+
+  // For each TF, extract target genes and create paths
+  for (const [path, content] of Object.entries(tfJsonFiles)) {
+    const fileName = path.split('/').pop()?.replace('.json', '');
+    if (!fileName) continue;
+
+    try {
+      const tfData = JSON.parse(content as string);
+      const targetGenesData = tfData.target_genes || {};
+      
+      // Collect all unique target genes across all assays
+      const allTargetGenes = new Set();
+      Object.values(targetGenesData).forEach((assayData: any) => {
+        if (assayData && typeof assayData === 'object') {
+          Object.keys(assayData).forEach(gene => allTargetGenes.add(gene));
+        }
+      });
+
+      // Create a path for each TF-target gene combination
+      allTargetGenes.forEach(targetGene => {
+        paths.push({
+          params: { 
+            slug: fileName.toLowerCase(), 
+            target: (targetGene as string).toLowerCase() 
+          },
+          props: { 
+            tfName: fileName, 
+            targetGene: targetGene as string,
+            tfData: tfData
+          }
+        });
+      });
+    } catch (error) {
+      console.error(`Error parsing JSON for ${fileName}:`, error);
+    }
+  }
+  
+  return paths;
+}
+
+interface Props {
+  tfName: string;
+  targetGene: string;
+  tfData: any;
+}
+
+const { tfName, targetGene, tfData }: Props = Astro.props;
+
+// Calculate interaction data for this specific TF-target gene pair
+let interactionData = {
+  targetGeneScores: {} as Record<string, number>,
+  affinityData: [] as Array<Record<string, any>>,
+  affinityRatioData: [] as Array<Record<string, any>>,
+  affinitySumData: [] as Array<Record<string, any>>,
+  avgScore: 0,
+  assayCount: 0,
+  rank: 0
+};
+
+if (tfData) {
+  // Extract target gene scores across all assays
+  const targetGenesData = tfData.target_genes || {};
+  Object.keys(targetGenesData).forEach(assay => {
+    const score = targetGenesData[assay][targetGene];
+    if (score !== undefined) {
+      interactionData.targetGeneScores[assay] = score;
+    }
+  });
+
+  // Calculate average score and assay count
+  const scores = Object.values(interactionData.targetGeneScores) as number[];
+  interactionData.avgScore = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
+  interactionData.assayCount = scores.length;
+
+  // Calculate rank by comparing with all other target genes
+  const allGeneScores: Record<string, number[]> = {};
+  Object.keys(targetGenesData).forEach(assay => {
+    Object.entries(targetGenesData[assay] || {}).forEach(([gene, score]) => {
+      if (!allGeneScores[gene]) {
+        allGeneScores[gene] = [];
+      }
+      allGeneScores[gene].push(score as number);
+    });
+  });
+
+  // Calculate average scores for ranking
+  const geneAvgScores = Object.entries(allGeneScores).map(([gene, scores]: [string, any]) => ({
+    gene,
+    avgScore: (scores as number[]).reduce((a, b) => a + b, 0) / (scores as number[]).length
+  })).sort((a, b) => b.avgScore - a.avgScore);
+
+  interactionData.rank = geneAvgScores.findIndex(item => item.gene === targetGene) + 1;
+
+  // Extract affinity matrices
+  const affinityData = tfData.tg_affinities || {};
+  const conditions = Object.keys(affinityData);
+  const allAssaysInAffinities = new Set();
+  
+  conditions.forEach(condition => {
+    Object.keys(affinityData[condition] || {}).forEach(assay => {
+      allAssaysInAffinities.add(assay);
+    });
+  });
+  
+  const assaysInAffinities = Array.from(allAssaysInAffinities);
+  
+  // Build affinity matrix for this target gene
+  assaysInAffinities.forEach((assay: string) => {
+    const row: Record<string, any> = { assay };
+    conditions.forEach(condition => {
+      const value = affinityData[condition]?.[assay]?.[targetGene];
+      row[condition] = value !== undefined ? value : null;
+    });
+    interactionData.affinityData.push(row);
+  });
+
+  // Extract affinity ratio data
+  const affinityRatioData = tfData.affinity_ratio || {};
+  const ratioPairings = Object.keys(affinityRatioData);
+  const allAssaysInRatios = new Set();
+  
+  ratioPairings.forEach(pairing => {
+    Object.keys(affinityRatioData[pairing] || {}).forEach(assay => {
+      allAssaysInRatios.add(assay);
+    });
+  });
+  
+  const assaysInRatios = Array.from(allAssaysInRatios);
+  
+  assaysInRatios.forEach((assay: string) => {
+    const row: Record<string, any> = { assay };
+    ratioPairings.forEach(pairing => {
+      const value = affinityRatioData[pairing]?.[assay]?.[targetGene];
+      row[pairing] = value !== undefined ? value : null;
+    });
+    interactionData.affinityRatioData.push(row);
+  });
+
+  // Extract affinity sum data
+  const affinitySumData = tfData.affinity_sum || {};
+  const sumPairings = Object.keys(affinitySumData);
+  const allAssaysInSums = new Set();
+  
+  sumPairings.forEach(pairing => {
+    Object.keys(affinitySumData[pairing] || {}).forEach(assay => {
+      allAssaysInSums.add(assay);
+    });
+  });
+  
+  const assaysInSums = Array.from(allAssaysInSums);
+  
+  assaysInSums.forEach((assay: string) => {
+    const row: Record<string, any> = { assay };
+    sumPairings.forEach(pairing => {
+      const value = affinitySumData[pairing]?.[assay]?.[targetGene];
+      row[pairing] = value !== undefined ? value : null;
+    });
+    interactionData.affinitySumData.push(row);
+  });
+}
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="generator" content={Astro.generator} />
+    <title>{tfName} - {targetGene} Interaction - nf-core/tfactivity report</title>
+  </head>
+  <body class="bg-gray-50">
+    <div class="max-w-6xl mx-auto py-8 px-4">
+      <!-- Loading Animation -->
+      <LoadingAnimation 
+        title={`Loading ${tfName}-${targetGene} Interaction Details`}
+        subtitle="Processing transcription factor-target gene interaction data..."
+        containerId="interaction-loading-overlay"
+      />
+
+      <!-- Main Content (initially hidden) -->
+      <div id="interaction-main-content" style="display: none;">
+        <!-- Header -->
+        <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <h1 class="text-3xl font-bold text-gray-800">{tfName} → {targetGene}</h1>
+              <p class="text-gray-600 mt-2">Transcription Factor - Target Gene Interaction Analysis</p>
+            </div>
+            <div class="text-right">
+              <div class="text-2xl font-bold text-blue-600">{interactionData.avgScore.toFixed(3)}</div>
+              <div class="text-sm text-gray-500">Average Score</div>
+              <div class="text-sm text-gray-500">Rank #{interactionData.rank}</div>
+            </div>
+          </div>
+          
+          <!-- Navigation -->
+          <div class="mt-6 pt-4 border-t border-gray-200">
+            <a 
+              href={`/tf/${tfName.toLowerCase()}/index.html`}
+              class="inline-flex items-center text-blue-600 hover:text-blue-800 transition-colors duration-150"
+            >
+              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+              </svg>
+              Back to {tfName} Details
+            </a>
+            <a 
+              href="/index.html" 
+              class="inline-flex items-center ml-6 text-gray-600 hover:text-gray-800 transition-colors duration-150"
+            >
+              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2 2z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2"></path>
+              </svg>
+              Overview
+            </a>
+            <a 
+              href={`https://www.genecards.org/cgi-bin/carddisp.pl?gene=${targetGene}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex items-center ml-6 text-gray-600 hover:text-gray-800 transition-colors duration-150"
+            >
+              <img src="/genecards.ico" alt="GeneCards" class="w-4 h-4 mr-2" />
+              View {targetGene} on GeneCards
+            </a>
+          </div>
+        </div>
+
+        <!-- Interaction Details Content -->
+        <div class="bg-white rounded-lg shadow-sm p-6">
+          <div class="space-y-6">
+            <!-- Summary Stats -->
+            <div class="grid grid-cols-3 gap-4">
+              <div class="bg-blue-50 p-4 rounded-lg text-center">
+                <div class="text-2xl font-bold text-blue-600">{interactionData.avgScore.toFixed(3)}</div>
+                <div class="text-sm text-blue-800">Average Score</div>
+              </div>
+              <div class="bg-green-50 p-4 rounded-lg text-center">
+                <div class="text-2xl font-bold text-green-600">#{interactionData.rank}</div>
+                <div class="text-sm text-green-800">Rank</div>
+              </div>
+              <div class="bg-purple-50 p-4 rounded-lg text-center">
+                <div class="text-2xl font-bold text-purple-600">{interactionData.assayCount}</div>
+                <div class="text-sm text-purple-800">Assays</div>
+              </div>
+            </div>
+
+            <!-- Scores by Assay -->
+            <div>
+              <h3 class="text-lg font-semibold text-gray-800 mb-4">Interaction Scores by Assay</h3>
+              <div class="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden">
+                <div class="divide-y divide-gray-200">
+                  {Object.entries(interactionData.targetGeneScores).map(([assay, score]) => (
+                    <div class="px-4 py-3 flex items-center justify-between">
+                      <span class="font-medium text-gray-900">{assay.replace('_', ' ')}</span>
+                      <span class="font-medium text-blue-600">{(score as number).toFixed(3)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <!-- Tab Navigation -->
+            <div class="mb-6">
+              <nav class="flex justify-center space-x-8" aria-label="Tabs">
+                <button id="tab-affinities" class="tab-button active whitespace-nowrap py-2 px-1 border-b-2 border-blue-500 font-medium text-sm text-blue-600">
+                  Affinities
+                </button>
+                <button id="tab-binding-sites" class="tab-button whitespace-nowrap py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                  Binding sites
+                </button>
+              </nav>
+            </div>
+
+            <!-- Tab Content -->
+            <div id="content-affinities" class="tab-content active">
+              <!-- Affinity Matrices -->
+              <div class="space-y-6">
+                <!-- Target Gene Affinities Heatmap -->
+                <div id="affinity-heatmap"></div>
+
+                <!-- Target Gene Affinity Ratios Heatmap -->
+                <div id="affinity-ratio-heatmap"></div>
+
+                <!-- Target Gene Affinity Sums Heatmap -->
+                <div id="affinity-sum-heatmap"></div>
+              </div>
+            </div>
+
+            <div id="content-binding-sites" class="tab-content hidden">
+              <div class="flex flex-col items-center justify-center py-12 px-6 bg-gray-50 rounded-lg border border-gray-200">
+                <div class="max-w-md text-center">
+                  <div class="flex justify-center mb-4">
+                    <svg class="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                  </div>
+                  <h3 class="text-lg font-semibold text-gray-600 mb-3">Binding Sites Analysis</h3>
+                  <p class="text-gray-500 leading-relaxed">
+                    Binding site information for the {tfName}-{targetGene} interaction will be displayed here in a future update.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading state management and heatmap rendering script -->
+    <script define:vars={{ tfName, targetGene, interactionData }}>
+      // Utility function to render heatmaps
+      function renderHeatmap(containerId, title, data, columns, colorScheme) {
+        const container = document.getElementById(containerId);
+        if (!container || !data || data.length === 0 || !columns || columns.length === 0) {
+          if (container) {
+            container.innerHTML = `
+              <div>
+                <h4 class="text-lg font-semibold text-gray-800 mb-4">${title}</h4>
+                <div class="text-center text-gray-500 py-6 bg-gray-50 border border-gray-200 rounded-lg">No data available for this interaction</div>
+              </div>
+            `;
+          }
+          return;
+        }
+
+        // Find min and max values for color scaling
+        let minValue = Infinity;
+        let maxValue = -Infinity;
+        
+        data.forEach(row => {
+          columns.forEach(column => {
+            const value = row[column];
+            if (value !== null && value !== undefined && !isNaN(value)) {
+              minValue = Math.min(minValue, value);
+              maxValue = Math.max(maxValue, value);
+            }
+          });
+        });
+
+        if (minValue === Infinity || maxValue === -Infinity) {
+          container.innerHTML = `
+            <div>
+              <h4 class="text-lg font-semibold text-gray-800 mb-4">${title}</h4>
+              <div class="text-center text-gray-500 py-6 bg-gray-50 border border-gray-200 rounded-lg">No valid data available for this interaction</div>
+            </div>
+          `;
+          return;
+        }
+
+        // Create color function based on color scheme
+        function getColor(value, normalizedValue) {
+          const intensity = Math.round(255 - (normalizedValue * 155)); // 255 to 100
+          
+          switch (colorScheme.baseColor) {
+            case 'blue':
+              return `rgb(${intensity}, ${intensity}, 255)`;
+            case 'green':
+              return `rgb(${intensity}, 255, ${intensity})`;
+            case 'red':
+              return `rgb(255, ${intensity}, ${intensity})`;
+            default:
+              return `rgb(${intensity}, ${intensity}, 255)`;
+          }
+        }
+
+        let heatmapHtml = `
+          <div>
+            <h4 class="text-lg font-semibold text-gray-800 mb-4">${title}</h4>
+            <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+              <div class="overflow-x-auto">
+                <table class="min-w-full border-collapse text-sm">
+                  <thead>
+                    <tr>
+                      <th class="border border-gray-300 px-3 py-2 bg-gray-50 font-medium text-gray-700 text-left">Assay</th>
+                      ${columns.map(column => `
+                        <th class="border border-gray-300 px-3 py-2 bg-gray-50 font-medium text-gray-700 text-center">${column}</th>
+                      `).join('')}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${data.map(row => `
+                      <tr>
+                        <td class="border border-gray-300 px-3 py-2 bg-gray-50 font-medium text-gray-700">${row.assay.replace('_', ' ')}</td>
+                        ${columns.map(column => {
+                          const value = row[column];
+                          let cellContent = '';
+                          let cellStyle = 'background-color: #f3f4f6;'; // Default gray for N/A
+                          
+                          if (value !== null && value !== undefined && !isNaN(value)) {
+                            // Normalize value to 0-1 range for color mapping
+                            const normalizedValue = (value - minValue) / (maxValue - minValue);
+                            cellStyle = `background-color: ${getColor(value, normalizedValue)};`;
+                            
+                            // Format the value
+                            cellContent = value < 0.001 ? value.toExponential(2) : value.toFixed(4);
+                          } else {
+                            cellContent = 'N/A';
+                          }
+                          
+                          return `<td class="border border-gray-300 px-3 py-2 text-center" style="${cellStyle}">${cellContent}</td>`;
+                        }).join('')}
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="mt-3 flex items-center justify-center space-x-6 text-sm text-gray-600">
+              <div class="flex items-center space-x-2">
+                <div class="w-4 h-4 border border-gray-300" style="background-color: ${colorScheme.lowColor};"></div>
+                <span>Low (${minValue.toExponential(2)})</span>
+              </div>
+              <div class="flex items-center space-x-2">
+                <div class="w-4 h-4 border border-gray-300" style="background-color: ${colorScheme.highColor};"></div>
+                <span>High (${maxValue.toExponential(2)})</span>
+              </div>
+            </div>
+          </div>
+        `;
+        
+        container.innerHTML = heatmapHtml;
+      }
+
+      // Handle loading state and render heatmaps
+      document.addEventListener('DOMContentLoaded', () => {
+        // Setup tab functionality
+        const affinitiesTab = document.getElementById('tab-affinities');
+        const bindingSitesTab = document.getElementById('tab-binding-sites');
+        const affinitiesContent = document.getElementById('content-affinities');
+        const bindingSitesContent = document.getElementById('content-binding-sites');
+
+        const allTabs = [affinitiesTab, bindingSitesTab];
+        const allContents = [affinitiesContent, bindingSitesContent];
+
+        function switchTab(activeTab, activeContent) {
+          // Reset all tabs to inactive state
+          allTabs.forEach(tab => {
+            if (tab) {
+              tab.classList.remove('active', 'border-blue-500', 'text-blue-600');
+              tab.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+            }
+          });
+
+          // Reset all content to hidden
+          allContents.forEach(content => {
+            if (content) {
+              content.classList.add('hidden');
+              content.classList.remove('active');
+            }
+          });
+
+          // Activate selected tab
+          if (activeTab) {
+            activeTab.classList.add('active', 'border-blue-500', 'text-blue-600');
+            activeTab.classList.remove('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+          }
+
+          // Show selected content
+          if (activeContent) {
+            activeContent.classList.remove('hidden');
+            activeContent.classList.add('active');
+          }
+        }
+
+        if (affinitiesTab && affinitiesContent) {
+          affinitiesTab.addEventListener('click', () => {
+            switchTab(affinitiesTab, affinitiesContent);
+          });
+        }
+
+        if (bindingSitesTab && bindingSitesContent) {
+          bindingSitesTab.addEventListener('click', () => {
+            switchTab(bindingSitesTab, bindingSitesContent);
+          });
+        }
+
+        const checkContentReady = () => {
+          const loadingOverlay = document.getElementById('interaction-loading-overlay');
+          const mainContent = document.getElementById('interaction-main-content');
+          
+          if (loadingOverlay && mainContent) {
+            // Add a small delay to ensure smooth transition
+            setTimeout(() => {
+              // Hide loading animation
+              loadingOverlay.style.transition = 'opacity 0.5s ease-out';
+              loadingOverlay.style.opacity = '0';
+              
+              setTimeout(() => {
+                loadingOverlay.style.display = 'none';
+                
+                // Show main content with fade in
+                mainContent.style.display = 'block';
+                mainContent.style.opacity = '0';
+                mainContent.style.transition = 'opacity 0.5s ease-in';
+                
+                // Trigger the fade in
+                setTimeout(() => {
+                  mainContent.style.opacity = '1';
+                }, 10);
+
+                // Render heatmaps after content is visible
+                setTimeout(() => {
+                  // Extract columns from interaction data
+                  const affinityColumns = interactionData.affinityData.length > 0 ? 
+                    Object.keys(interactionData.affinityData[0]).filter(key => key !== 'assay') : [];
+                  const ratioColumns = interactionData.affinityRatioData.length > 0 ? 
+                    Object.keys(interactionData.affinityRatioData[0]).filter(key => key !== 'assay') : [];
+                  const sumColumns = interactionData.affinitySumData.length > 0 ? 
+                    Object.keys(interactionData.affinitySumData[0]).filter(key => key !== 'assay') : [];
+
+                  // Render all three heatmaps
+                  renderHeatmap(
+                    'affinity-heatmap',
+                    'Target Gene Affinities Across Conditions',
+                    interactionData.affinityData,
+                    affinityColumns,
+                    { baseColor: 'blue', lowColor: 'rgb(255, 255, 255)', highColor: 'rgb(100, 100, 255)' }
+                  );
+
+                  renderHeatmap(
+                    'affinity-ratio-heatmap',
+                    'Target Gene Affinity Ratios',
+                    interactionData.affinityRatioData,
+                    ratioColumns,
+                    { baseColor: 'green', lowColor: 'rgb(255, 255, 255)', highColor: 'rgb(100, 255, 100)' }
+                  );
+
+                  renderHeatmap(
+                    'affinity-sum-heatmap',
+                    'Target Gene Affinity Sums',
+                    interactionData.affinitySumData,
+                    sumColumns,
+                    { baseColor: 'red', lowColor: 'rgb(255, 255, 255)', highColor: 'rgb(255, 100, 100)' }
+                  );
+                }, 100);
+              }, 500);
+            }, 800);
+          } else {
+            // If not ready yet, check again
+            setTimeout(checkContentReady, 100);
+          }
+        };
+        
+        // Start checking after DOM is loaded
+        checkContentReady();
+      });
+    </script>
+  </body>
+</html>
+
+<style>
+  html {
+    font-family: system-ui, sans-serif;
+  }
+
+  /* Tab styling */
+  .tab-button {
+    transition: all 0.2s ease-in-out;
+  }
+
+  .tab-content {
+    transition: opacity 0.3s ease-in-out;
+  }
+
+  .tab-content.hidden {
+    display: none;
+  }
+
+  .tab-content:not(.hidden) {
+    display: block;
+  }
+</style>
