@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.11",
-    "@visa-ge/visage": "^0.2.0",
+    "@visa-ge/visage": "^0.4.0",
     "astro": "^5.10.1",
     "astro-relative-links": "^0.4.2",
     "plotly.js-dist-min": "^3.0.1",
