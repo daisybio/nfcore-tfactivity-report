@@ -62,48 +62,71 @@ const { tfName, targetGene, tfData }: Props = Astro.props;
 // Derive TF gene symbol (strip potential motif/version in parentheses)
 const tfSymbol = tfName?.includes('(') ? tfName.split('(')[0] : tfName;
 
-// Build GTF server-side to avoid client serialization limits
-function buildServerGtfFromFimo(fimoData: any, tfSymbolLocal: string, targetGeneLocal: string): string {
+// Build BED tracks (per condition) server-side with per-assay colors via itemRgb
+function buildServerBedTracks(fimoData: any, tfSymbolLocal: string, targetGeneLocal: string): Array<{ name: string; format: 'bed'; text: string }> {
+  const tracks: Array<{ name: string; format: 'bed'; text: string }> = [];
+  // simple color palette
+  const palette = ['#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00', '#a65628', '#f781bf', '#999999', '#66c2a5', '#8da0cb'];
+  function hexToRgb(hex: string): string {
+    const m = hex.replace('#', '');
+    const r = parseInt(m.slice(0, 2), 16);
+    const g = parseInt(m.slice(2, 4), 16);
+    const b = parseInt(m.slice(4, 6), 16);
+    return `${r},${g},${b}`;
+  }
+  function assayToRgb(assay: string): string {
+    let hash = 0;
+    for (let i = 0; i < assay.length; i++) {
+      hash = ((hash << 5) - hash) + assay.charCodeAt(i);
+      hash |= 0;
+    }
+    const idx = Math.abs(hash) % palette.length;
+    return hexToRgb(palette[idx]);
+  }
   try {
-    const lines: string[] = [];
-    lines.push(`# GTF generated (server) from FIMO binding sites for ${tfSymbolLocal}`);
-    let featureCount = 0;
     Object.keys(fimoData || {}).forEach((condition) => {
       const assays = (fimoData as any)[condition] || {};
+      let featureCount = 0;
+      const lines: string[] = [];
+      lines.push(`# BED (server) for ${tfSymbolLocal} | condition=${condition} | assays=ALL`);
+      // BED header is comment lines; real entries below
       Object.keys(assays).forEach((assay) => {
         const hits = (assays as any)[assay] || [];
+        const rgb = assayToRgb(assay);
         (hits as any[]).forEach((hit) => {
-          const seqname = hit.sequence_name;
-          const source = 'FIMO';
-          const feature = 'TFBS';
-          const start = hit.start;
-          const end = hit.stop;
-          const score = typeof hit.score === 'number' ? hit.score : '.';
-          const strand = hit.strand || '.';
-          const frame = '.';
-          const attrsParts = [
-            `gene_name "${targetGeneLocal}"`,
-            `tf_name "${tfSymbolLocal}"`,
-            `assay "${assay}"`,
-            `condition "${condition}"`,
-            (hit['p-value'] !== undefined ? `p_value "${hit['p-value']}"` : null),
-            (hit['q-value'] !== undefined ? `q_value "${hit['q-value']}"` : null),
-            (hit.matched_sequence ? `matched_sequence "${hit.matched_sequence}"` : null)
-          ].filter(Boolean).join('; ');
-          lines.push([seqname, source, feature, start, end, score, strand, frame, attrsParts + ';'].join('\t'));
+          const chrom = hit.sequence_name;
+          const start1 = typeof hit.start === 'number' ? hit.start : parseInt(hit.start, 10);
+          const stop1 = typeof hit.stop === 'number' ? hit.stop : parseInt(hit.stop, 10);
+          if (!chrom || isNaN(start1) || isNaN(stop1)) return;
+          // BED is 0-based start, half-open end
+          const chromStart = Math.max(0, start1 - 1);
+          const chromEnd = stop1;
+          const name = `${tfSymbolLocal}|${assay}`;
+          const rawScore = typeof hit.score === 'number' ? hit.score : 0;
+          const score = Math.max(0, Math.min(1000, Math.round(rawScore * 50)));
+          const strand = hit.strand === '+' || hit.strand === '-' ? hit.strand : '.';
+          const thickStart = chromStart;
+          const thickEnd = chromEnd;
+          const itemRgb = rgb; // R,G,B
+          // BED9
+          lines.push([chrom, chromStart, chromEnd, name, score, strand, thickStart, thickEnd, itemRgb].join('\t'));
           featureCount += 1;
         });
       });
+      if (featureCount > 0) {
+        tracks.push({
+          name: `${tfSymbolLocal} binding sites: ${condition}`,
+          format: 'bed',
+          text: lines.join('\n') + '\n'
+        });
+      }
     });
-    const gtf = lines.join('\n') + '\n';
-    return featureCount > 0 ? gtf : '';
-  } catch (e) {
-    return '';
-  }
+  } catch (e) {}
+  return tracks;
 }
 
 const fimoData = tfData && tfData.fimo_binding_sites ? tfData.fimo_binding_sites : undefined;
-const serverGtfText = fimoData ? buildServerGtfFromFimo(fimoData, tfSymbol, targetGene) : '';
+const serverBedTracks = fimoData ? buildServerBedTracks(fimoData, tfSymbol, targetGene) : [];
 
 // Calculate interaction data for this specific TF-target gene pair
 let interactionData = {
@@ -357,8 +380,8 @@ if (tfData) {
       </div>
     </div>
 
-    <!-- Loading state management, heatmap rendering, and GTF loading script -->
-    <script define:vars={{ tfName, targetGene, interactionData, serverGtfText }}>
+    <!-- Loading state management, heatmap rendering, and track loading script -->
+    <script define:vars={{ tfName, targetGene, interactionData, serverBedTracks }}>
       // Utility function to render heatmaps
       function renderHeatmap(containerId, title, data, columns, colorScheme) {
         const container = document.getElementById(containerId);
@@ -584,43 +607,18 @@ if (tfData) {
                     { baseColor: 'red', lowColor: 'rgb(255, 255, 255)', highColor: 'rgb(255, 100, 100)' }
                   );
 
-                  // Build GTF from FIMO binding sites and load into VISAGE via Blob URL
+                  // Build per-track BED blobs and load into VISAGE via tracks
                   try {
-                    const tfSymbolLocal = tfName.includes('(') ? tfName.split('(')[0] : tfName;
-                    const gtfText = serverGtfText || '';
-                    
-                    if (gtfText && gtfText.length > 0) {
-                      const blob = new Blob([gtfText], { type: 'text/plain' });
-                      const gtfUrl = URL.createObjectURL(blob);
-                      console.log('[VISAGE] Created GTF Blob URL', gtfUrl);
-                      const browserEl = document.getElementById('visage-browser');
-                      if (browserEl) {
-                        // Set explicit gtf-url (if supported) and tracks (required)
-                        browserEl.setAttribute('gtf-url', gtfUrl);
-                        const tracks = [
-                          {
-                            name: `${tfSymbolLocal} FIMO sites`,
-                            type: 'annotation',
-                            format: 'gtf',
-                            url: gtfUrl
-                          }
-                        ];
-                        // Set tracks via attribute (component expects JSON string)
-                        browserEl.setAttribute('tracks', JSON.stringify(tracks));
-                      } else {
-                        
-                      }
-                      // Revoke on page unload to prevent leaks
+                    const browserEl = document.getElementById('visage-browser');
+                    if (browserEl && Array.isArray(serverBedTracks) && serverBedTracks.length > 0) {
+                      const blobs = serverBedTracks.map(t => ({ name: t.name, url: URL.createObjectURL(new Blob([t.text], { type: 'text/plain' })), format: t.format }));
+                      const tracks = blobs.map(b => ({ name: b.name, type: 'annotation', format: b.format, url: b.url }));
+                      browserEl.setAttribute('tracks', JSON.stringify(tracks));
                       window.addEventListener('beforeunload', () => {
-                        URL.revokeObjectURL(gtfUrl);
-                        console.log('[VISAGE] Revoked GTF Blob URL');
+                        blobs.forEach(b => URL.revokeObjectURL(b.url));
                       });
-                    } else {
-                      console.warn('[VISAGE] Empty GTF generated; skipping track injection');
                     }
-                  } catch (e) {
-                    console.error('Error preparing GTF for VISAGE', e);
-                  }
+                  } catch (e) {}
                 }, 100);
               }, 500);
             }, 800);
