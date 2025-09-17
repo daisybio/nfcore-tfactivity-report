@@ -1,6 +1,7 @@
 ---
 import "../../../styles/global.css";
 import LoadingAnimation from "../../../components/LoadingAnimation.astro";
+import candidateRegions from "../../../assets/candidate_regions.json";
 
 export async function getStaticPaths() {
   // Import all TF JSON files using glob pattern
@@ -89,6 +90,7 @@ function buildServerBedTracks(fimoData: any, tfSymbolLocal: string, targetGeneLo
       let featureCount = 0;
       const lines: string[] = [];
       lines.push(`# BED (server) for ${tfSymbolLocal} | condition=${condition} | assays=ALL`);
+      lines.push(`track name="${tfSymbolLocal} binding sites: ${condition}" itemRgb="On"`);
       // BED header is comment lines; real entries below
       Object.keys(assays).forEach((assay) => {
         const hits = (assays as any)[assay] || [];
@@ -101,6 +103,7 @@ function buildServerBedTracks(fimoData: any, tfSymbolLocal: string, targetGeneLo
           // BED is 0-based start, half-open end
           const chromStart = Math.max(0, start1 - 1);
           const chromEnd = stop1;
+          // Avoid spaces in name to keep BED columns intact
           const name = `${tfSymbolLocal}|${assay}`;
           const rawScore = typeof hit.score === 'number' ? hit.score : 0;
           const score = Math.max(0, Math.min(1000, Math.round(rawScore * 50)));
@@ -113,13 +116,14 @@ function buildServerBedTracks(fimoData: any, tfSymbolLocal: string, targetGeneLo
           featureCount += 1;
         });
       });
-      if (featureCount > 0) {
-        tracks.push({
-          name: `${tfSymbolLocal} binding sites: ${condition}`,
-          format: 'bed',
-          text: lines.join('\n') + '\n'
-        });
-      }
+      const trackName = featureCount > 0 
+        ? `${tfSymbolLocal} binding sites: ${condition}`
+        : `${tfSymbolLocal} binding sites: ${condition} (none)`;
+      tracks.push({
+        name: trackName,
+        format: 'bed',
+        text: lines.join('\n') + '\n'
+      });
     });
   } catch (e) {}
   return tracks;
@@ -127,6 +131,71 @@ function buildServerBedTracks(fimoData: any, tfSymbolLocal: string, targetGeneLo
 
 const fimoData = tfData && tfData.fimo_binding_sites ? tfData.fimo_binding_sites : undefined;
 const serverBedTracks = fimoData ? buildServerBedTracks(fimoData, tfSymbol, targetGene) : [];
+
+// Build BED tracks from candidate regions (per condition, color by assay, name by sample)
+function buildServerBedCandidateTracks(data: any): Array<{ name: string; format: 'bed'; text: string }> {
+  const tracks: Array<{ name: string; format: 'bed'; text: string }> = [];
+  // Darker, high-contrast palette for region coloring
+  const palette = ['#264653', '#1d3557', '#6a040f', '#3a0ca3', '#283618', '#5e548e', '#343a40', '#7f4f24', '#1b4332', '#2c3e50'];
+  function hexToRgb(hex: string): string {
+    const m = hex.replace('#', '');
+    const r = parseInt(m.slice(0, 2), 16);
+    const g = parseInt(m.slice(2, 4), 16);
+    const b = parseInt(m.slice(4, 6), 16);
+    return `${r},${g},${b}`;
+  }
+  function assayToRgb(assay: string): string {
+    let hash = 0;
+    for (let i = 0; i < assay.length; i++) {
+      hash = ((hash << 5) - hash) + assay.charCodeAt(i);
+      hash |= 0;
+    }
+    const idx = Math.abs(hash) % palette.length;
+    return hexToRgb(palette[idx]);
+  }
+  try {
+    Object.keys(data || {}).forEach((condition) => {
+      const assays = (data as any)[condition] || {};
+      let featureCount = 0;
+      const lines: string[] = [];
+      lines.push(`# BED (server) candidate regions | condition=${condition}`);
+      lines.push(`track name="Candidate regions: ${condition}" itemRgb="On"`);
+      Object.keys(assays).forEach((assay) => {
+        const samples = (assays as any)[assay] || {};
+        const rgb = assayToRgb(assay);
+        Object.keys(samples || {}).forEach((sample) => {
+          const chromMap = (samples as any)[sample] || {};
+          Object.keys(chromMap || {}).forEach((chrom) => {
+            const intervals = (chromMap as any)[chrom] || [];
+            (intervals as any[]).forEach((pair) => {
+              const start1 = Array.isArray(pair) && pair.length > 0 ? pair[0] : undefined;
+              const stop1 = Array.isArray(pair) && pair.length > 1 ? pair[1] : undefined;
+              if (!chrom || typeof start1 !== 'number' || typeof stop1 !== 'number') return;
+              const chromStart = Math.max(0, start1); // source appears 0-based already; do not subtract 1
+              const chromEnd = stop1;
+              // Avoid spaces in name to keep BED columns intact
+              const name = `${assay}:${String(sample)}`;
+              const score = 0;
+              const strand = '.';
+              const thickStart = chromStart;
+              const thickEnd = chromEnd;
+              const itemRgb = rgb;
+              lines.push([chrom, chromStart, chromEnd, name, score, strand, thickStart, thickEnd, itemRgb].join('\t'));
+              featureCount += 1;
+            });
+          });
+        });
+      });
+      const trackName = featureCount > 0 
+        ? `Candidate regions: ${condition}`
+        : `Candidate regions: ${condition} (none)`;
+      tracks.push({ name: trackName, format: 'bed', text: lines.join('\n') + '\n' });
+    });
+  } catch (e) {}
+  return tracks;
+}
+
+const serverBedCandidateTracks = buildServerBedCandidateTracks(candidateRegions);
 
 // Calculate interaction data for this specific TF-target gene pair
 let interactionData = {
@@ -381,7 +450,7 @@ if (tfData) {
     </div>
 
     <!-- Loading state management, heatmap rendering, and track loading script -->
-    <script define:vars={{ tfName, targetGene, interactionData, serverBedTracks }}>
+    <script define:vars={{ tfName, targetGene, interactionData, serverBedTracks, serverBedCandidateTracks }}>
       // Utility function to render heatmaps
       function renderHeatmap(containerId, title, data, columns, colorScheme) {
         const container = document.getElementById(containerId);
@@ -610,8 +679,10 @@ if (tfData) {
                   // Build per-track BED blobs and load into VISAGE via tracks
                   try {
                     const browserEl = document.getElementById('visage-browser');
-                    if (browserEl && Array.isArray(serverBedTracks) && serverBedTracks.length > 0) {
-                      const blobs = serverBedTracks.map(t => ({ name: t.name, url: URL.createObjectURL(new Blob([t.text], { type: 'text/plain' })), format: t.format }));
+                    if (browserEl) {
+                      const blobsA = Array.isArray(serverBedTracks) ? serverBedTracks.map(t => ({ name: t.name, url: URL.createObjectURL(new Blob([t.text], { type: 'text/plain' })), format: t.format })) : [];
+                      const blobsB = Array.isArray(serverBedCandidateTracks) ? serverBedCandidateTracks.map(t => ({ name: t.name, url: URL.createObjectURL(new Blob([t.text], { type: 'text/plain' })), format: t.format })) : [];
+                      const blobs = [...blobsA, ...blobsB];
                       const tracks = blobs.map(b => ({ name: b.name, type: 'annotation', format: b.format, url: b.url }));
                       browserEl.setAttribute('tracks', JSON.stringify(tracks));
                       window.addEventListener('beforeunload', () => {
