@@ -59,6 +59,9 @@ interface Props {
 
 const { tfName, targetGene, tfData }: Props = Astro.props;
 
+// Derive TF gene symbol (strip potential motif/version in parentheses)
+const tfSymbol = tfName?.includes('(') ? tfName.split('(')[0] : tfName;
+
 // Calculate interaction data for this specific TF-target gene pair
 let interactionData = {
   targetGeneScores: {} as Record<string, number>,
@@ -304,7 +307,7 @@ if (tfData) {
             </div>
 
             <div id="content-binding-sites" class="tab-content hidden">
-              <visa-ge></visa-ge>
+              <visa-ge genome-id="mm10" selected-genes={`${tfSymbol},${targetGene}`}></visa-ge>
             </div>
           </div>
         </div>
