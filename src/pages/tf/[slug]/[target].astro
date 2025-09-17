@@ -62,6 +62,49 @@ const { tfName, targetGene, tfData }: Props = Astro.props;
 // Derive TF gene symbol (strip potential motif/version in parentheses)
 const tfSymbol = tfName?.includes('(') ? tfName.split('(')[0] : tfName;
 
+// Build GTF server-side to avoid client serialization limits
+function buildServerGtfFromFimo(fimoData: any, tfSymbolLocal: string, targetGeneLocal: string): string {
+  try {
+    const lines: string[] = [];
+    lines.push(`# GTF generated (server) from FIMO binding sites for ${tfSymbolLocal}`);
+    let featureCount = 0;
+    Object.keys(fimoData || {}).forEach((condition) => {
+      const assays = (fimoData as any)[condition] || {};
+      Object.keys(assays).forEach((assay) => {
+        const hits = (assays as any)[assay] || [];
+        (hits as any[]).forEach((hit) => {
+          const seqname = hit.sequence_name;
+          const source = 'FIMO';
+          const feature = 'TFBS';
+          const start = hit.start;
+          const end = hit.stop;
+          const score = typeof hit.score === 'number' ? hit.score : '.';
+          const strand = hit.strand || '.';
+          const frame = '.';
+          const attrsParts = [
+            `gene_name "${targetGeneLocal}"`,
+            `tf_name "${tfSymbolLocal}"`,
+            `assay "${assay}"`,
+            `condition "${condition}"`,
+            (hit['p-value'] !== undefined ? `p_value "${hit['p-value']}"` : null),
+            (hit['q-value'] !== undefined ? `q_value "${hit['q-value']}"` : null),
+            (hit.matched_sequence ? `matched_sequence "${hit.matched_sequence}"` : null)
+          ].filter(Boolean).join('; ');
+          lines.push([seqname, source, feature, start, end, score, strand, frame, attrsParts + ';'].join('\t'));
+          featureCount += 1;
+        });
+      });
+    });
+    const gtf = lines.join('\n') + '\n';
+    return featureCount > 0 ? gtf : '';
+  } catch (e) {
+    return '';
+  }
+}
+
+const fimoData = tfData && tfData.fimo_binding_sites ? tfData.fimo_binding_sites : undefined;
+const serverGtfText = fimoData ? buildServerGtfFromFimo(fimoData, tfSymbol, targetGene) : '';
+
 // Calculate interaction data for this specific TF-target gene pair
 let interactionData = {
   targetGeneScores: {} as Record<string, number>,
@@ -307,15 +350,15 @@ if (tfData) {
             </div>
 
             <div id="content-binding-sites" class="tab-content hidden">
-              <visa-ge genome-id="mm10" selected-genes={`${tfSymbol},${targetGene}`}></visa-ge>
+              <visa-ge id="visage-browser" genome-id="mm10" selected-genes={`${tfSymbol},${targetGene}`}></visa-ge>
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Loading state management and heatmap rendering script -->
-    <script define:vars={{ tfName, targetGene, interactionData }}>
+    <!-- Loading state management, heatmap rendering, and GTF loading script -->
+    <script define:vars={{ tfName, targetGene, interactionData, serverGtfText }}>
       // Utility function to render heatmaps
       function renderHeatmap(containerId, title, data, columns, colorScheme) {
         const container = document.getElementById(containerId);
@@ -540,6 +583,44 @@ if (tfData) {
                     sumColumns,
                     { baseColor: 'red', lowColor: 'rgb(255, 255, 255)', highColor: 'rgb(255, 100, 100)' }
                   );
+
+                  // Build GTF from FIMO binding sites and load into VISAGE via Blob URL
+                  try {
+                    const tfSymbolLocal = tfName.includes('(') ? tfName.split('(')[0] : tfName;
+                    const gtfText = serverGtfText || '';
+                    
+                    if (gtfText && gtfText.length > 0) {
+                      const blob = new Blob([gtfText], { type: 'text/plain' });
+                      const gtfUrl = URL.createObjectURL(blob);
+                      console.log('[VISAGE] Created GTF Blob URL', gtfUrl);
+                      const browserEl = document.getElementById('visage-browser');
+                      if (browserEl) {
+                        // Set explicit gtf-url (if supported) and tracks (required)
+                        browserEl.setAttribute('gtf-url', gtfUrl);
+                        const tracks = [
+                          {
+                            name: `${tfSymbolLocal} FIMO sites`,
+                            type: 'annotation',
+                            format: 'gtf',
+                            url: gtfUrl
+                          }
+                        ];
+                        // Set tracks via attribute (component expects JSON string)
+                        browserEl.setAttribute('tracks', JSON.stringify(tracks));
+                      } else {
+                        
+                      }
+                      // Revoke on page unload to prevent leaks
+                      window.addEventListener('beforeunload', () => {
+                        URL.revokeObjectURL(gtfUrl);
+                        console.log('[VISAGE] Revoked GTF Blob URL');
+                      });
+                    } else {
+                      console.warn('[VISAGE] Empty GTF generated; skipping track injection');
+                    }
+                  } catch (e) {
+                    console.error('Error preparing GTF for VISAGE', e);
+                  }
                 }, 100);
               }, 500);
             }, 800);
