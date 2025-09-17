@@ -1,40 +1,21 @@
 ---
-import "../styles/global.css";
-import logo from "../assets/images/nf-core-tfactivity_logo_light.png";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import SectionCard from "../components/SectionCard.astro";
+import BackButton from "../components/BackButton.astro";
 import metadata from "../assets/metadata.json";
-import NavBar from "../components/NavBar.astro";
 
 const bibliographyHtml: string = (metadata as any)?.methods_description?.tool_bibliography || "";
 const contributors: any[] = (metadata as any)?.methods_description?.manifest_map?.contributors || [];
 ---
 
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width" />
-    <meta name="generator" content={Astro.generator} />
-    <title>Citations - nf-core/tfactivity report</title>
-  </head>
-  <body class="bg-gray-50">
-    <div class="max-w-6xl mx-auto py-8 px-4">
-      <div class="flex justify-center py-8">
-        <img src={logo.src} alt="nf-core/tfactivity Pipeline Logo" class="h-40 w-auto" />
-      </div>
-
-      <!-- Navigation -->
-      <NavBar active="citations" />
-
-      <div class="max-w-4xl mx-auto px-4 py-6">
+<BaseLayout title="Citations - nf-core/tfactivity report" active="citations">
+  <div class="max-w-4xl mx-auto px-4 py-6">
         <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center">Citations</h1>
         <p class="text-gray-600 text-center mb-8">Please cite the following tools and resources used in this analysis.</p>
 
         <!-- Contributors -->
-        <div class="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden mb-8">
-          <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
-            <h2 class="text-xl font-semibold text-gray-800">Contributors</h2>
-          </div>
-          <div class="px-6 py-4">
+        <SectionCard title="Contributors">
+          <div>
             {contributors.length === 0 ? (
               <p class="text-gray-600">No contributor information available.</p>
             ) : (
@@ -71,43 +52,18 @@ const contributors: any[] = (metadata as any)?.methods_description?.manifest_map
               </ul>
             )}
           </div>
-        </div>
+        </SectionCard>
 
-        <div class="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-          <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
-            <h2 class="text-xl font-semibold text-gray-800">Bibliography</h2>
-          </div>
-          <div class="px-6 py-4">
-            <ul class="list-disc list-outside pl-6 space-y-2 prose">
+        <SectionCard title="Bibliography">
+          <ul class="list-disc list-outside pl-6 space-y-2">
               <Fragment set:html={bibliographyHtml} />
             </ul>
-          </div>
-        </div>
+        </SectionCard>
 
         <!-- Back to Rankings Button -->
         <div class="mt-12 text-center">
-          <a 
-            href="/" 
-            class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
-          >
-            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
-            </svg>
-            Back to Rankings
-          </a>
+          <BackButton />
         </div>
-      </div>
-    </div>
-  </body>
-</html>
-
-<style>
-  html {
-    font-family: system-ui, sans-serif;
-  }
-  .prose li { margin-bottom: 0.5rem; }
-  .prose a { color: #2563eb; }
-  .prose a:hover { color: #1e40af; }
-  .prose em { font-style: italic; }
-</style>
+  </div>
+</BaseLayout>
 

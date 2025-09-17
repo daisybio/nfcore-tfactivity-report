@@ -1,89 +1,63 @@
 ---
-import "../styles/global.css";
-import logo from "../assets/images/nf-core-tfactivity_logo_light.png";
 import RankingContainer from "../components/RankingContainer.astro";
-import NavBar from "../components/NavBar.astro";
 import LoadingAnimation from "../components/LoadingAnimation.astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
 import overviewData from "../assets/overview.json";
 ---
 
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width" />
-    <meta name="generator" content={Astro.generator} />
-    <title>nf-core/tfactivity report</title>
-  </head>
-  <body class="bg-gray-50">
-    <div class="max-w-6xl mx-auto py-8 px-4">
-      <div class="flex justify-center py-8">
-        <img src={logo.src} alt="nf-core/tfactivity Pipeline Logo" class="h-40 w-auto" />
-      </div>
+<BaseLayout title="nf-core/tfactivity report" active="rankings">
+  <!-- Loading Animation -->
+  <LoadingAnimation 
+    title="Initializing Rankings"
+    subtitle="Processing transcription factor data and calculating scores..."
+    containerId="loading-overlay"
+  />
 
-      <!-- Navigation -->
-      <NavBar active="rankings" />
+  <!-- Main Content (initially hidden) -->
+  <div id="main-content" style="display: none;">
+    <RankingContainer overviewData={overviewData} />
+  </div>
 
-      <!-- Loading Animation -->
-      <LoadingAnimation 
-        title="Initializing Rankings"
-        subtitle="Processing transcription factor data and calculating scores..."
-        containerId="loading-overlay"
-      />
-
-      <!-- Main Content (initially hidden) -->
-      <div id="main-content" style="display: none;">
-        <RankingContainer overviewData={overviewData} />
-      </div>
-    </div>
-
-    <!-- Loading state management script -->
-    <script>
-      // Override the initializeComponent function to handle loading state
-      document.addEventListener('DOMContentLoaded', () => {
-        // Wait for the ranking container to be ready
-        const checkRankingReady = () => {
-          // Check if the ranking container script has executed
-          const rankingContainer = document.getElementById('ranking-container');
-          const loadingOverlay = document.getElementById('loading-overlay');
-          const mainContent = document.getElementById('main-content');
-          
-          if (rankingContainer && loadingOverlay && mainContent) {
-            // Add a small delay to ensure smooth transition
-            setTimeout(() => {
-              // Hide loading animation
-              loadingOverlay.style.transition = 'opacity 0.5s ease-out';
-              loadingOverlay.style.opacity = '0';
-              
-              setTimeout(() => {
-                loadingOverlay.style.display = 'none';
-                
-                // Show main content with fade in
-                mainContent.style.display = 'block';
-                mainContent.style.opacity = '0';
-                mainContent.style.transition = 'opacity 0.5s ease-in';
-                
-                // Trigger the fade in
-                setTimeout(() => {
-                  mainContent.style.opacity = '1';
-                }, 10);
-              }, 500);
-            }, 800); // Give some time for ranking initialization
-          } else {
-            // If not ready yet, check again
-            setTimeout(checkRankingReady, 100);
-          }
-        };
+  <!-- Loading state management script -->
+  <script>
+    // Override the initializeComponent function to handle loading state
+    document.addEventListener('DOMContentLoaded', () => {
+      // Wait for the ranking container to be ready
+      const checkRankingReady = () => {
+        // Check if the ranking container script has executed
+        const rankingContainer = document.getElementById('ranking-container');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const mainContent = document.getElementById('main-content');
         
-        // Start checking after DOM is loaded
-        checkRankingReady();
-      });
-    </script>
-  </body>
-</html>
-
-<style>
-  html {
-    font-family: system-ui, sans-serif;
-  }
-</style>
+        if (rankingContainer && loadingOverlay && mainContent) {
+          // Add a small delay to ensure smooth transition
+          setTimeout(() => {
+            // Hide loading animation
+            loadingOverlay.style.transition = 'opacity 0.5s ease-out';
+            loadingOverlay.style.opacity = '0';
+            
+            setTimeout(() => {
+              loadingOverlay.style.display = 'none';
+              
+              // Show main content with fade in
+              mainContent.style.display = 'block';
+              mainContent.style.opacity = '0';
+              mainContent.style.transition = 'opacity 0.5s ease-in';
+              
+              // Trigger the fade in
+              setTimeout(() => {
+                mainContent.style.opacity = '1';
+              }, 10);
+            }, 500);
+          }, 800); // Give some time for ranking initialization
+        } else {
+          // If not ready yet, check again
+          setTimeout(checkRankingReady, 100);
+        }
+      };
+      
+      // Start checking after DOM is loaded
+      checkRankingReady();
+    });
+  </script>
+</BaseLayout>

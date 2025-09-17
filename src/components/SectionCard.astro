@@ -1,0 +1,22 @@
+---
+export interface Props {
+  title: string;
+  subtitle?: string;
+}
+
+const { title, subtitle } = Astro.props as Props;
+---
+
+<div class="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+  <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+    <h2 class="text-xl font-semibold text-gray-800">{title}</h2>
+    {subtitle && (
+      <p class="text-gray-600 mt-1">{subtitle}</p>
+    )}
+  </div>
+  <div class="px-6 py-4">
+    <slot />
+  </div>
+  <slot name="footer" />
+</div>
+
