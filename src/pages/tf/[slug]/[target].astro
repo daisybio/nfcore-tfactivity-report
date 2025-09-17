@@ -566,6 +566,31 @@ if (tfData) {
 
       // Handle loading state and render heatmaps
       document.addEventListener('DOMContentLoaded', () => {
+        // Helper to trigger a VISAGE redraw (prefer visibility-signal bump)
+        let __visageVisibilityTick = 0;
+        function triggerVisageRedraw() {
+          const el = document.getElementById('visage-browser');
+          if (!el) return;
+          // Preferred: bump visibility-signal attribute so component can react
+          try {
+            __visageVisibilityTick += 1;
+            el.setAttribute('visibility-signal', String(__visageVisibilityTick));
+            return;
+          } catch {}
+          try {
+            if (typeof (el).requestRedraw === 'function') {
+              (el).requestRedraw();
+              return;
+            }
+          } catch {}
+          try {
+            el.dispatchEvent(new CustomEvent('visage-redraw'));
+          } catch {}
+          // Attribute toggle fallback to signal change
+          try {
+            el.setAttribute('data-redraw', String(Date.now()));
+          } catch {}
+        }
         // Setup tab functionality
         const affinitiesTab = document.getElementById('tab-affinities');
         const bindingSitesTab = document.getElementById('tab-binding-sites');
@@ -614,6 +639,8 @@ if (tfData) {
         if (bindingSitesTab && bindingSitesContent) {
           bindingSitesTab.addEventListener('click', () => {
             switchTab(bindingSitesTab, bindingSitesContent);
+            // Trigger VISAGE redraw after tab switch
+            triggerVisageRedraw();
           });
         }
 
