@@ -7,12 +7,6 @@ import { inflate } from 'pako';
  */
 function decompressBedText(compressedText: string): string {
   try {
-    // Check if it's actually compressed (base64 encoded)
-    if (compressedText.indexOf('\n') !== -1 || compressedText.indexOf('\t') !== -1) {
-      // Not compressed, return as is
-      return compressedText;
-    }
-    
     // Decode base64
     const binaryString = atob(compressedText);
     const bytes = new Uint8Array(binaryString.length);
@@ -75,7 +69,7 @@ export function loadBedTracksIntoVisage(serverBedTracks: any[], serverBedCandida
       });
     }
   } catch (e) {
-    console.error('Error processing BED tracks:', e);
+    // Swallow errors
   }
 }
 

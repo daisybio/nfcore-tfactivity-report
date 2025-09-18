@@ -2,6 +2,7 @@
 import "../../../styles/global.css";
 import LoadingAnimation from "../../../components/LoadingAnimation.astro";
 import candidateRegions from "../../../assets/candidate_regions.json";
+import geneLocations from "../../../assets/gene_locations.json";
 import { gzipSync } from 'node:zlib';
 
 export async function getStaticPaths() {
@@ -64,6 +65,11 @@ const { tfName, targetGene, tfData }: Props = Astro.props;
 // Derive TF gene symbol (strip potential motif/version in parentheses)
 const tfSymbol = tfName?.includes('(') ? tfName.split('(')[0] : tfName;
 
+// Build a lowercase index for gene locations (case-insensitive lookup)
+const geneLocationsLower: Record<string, any> = Object.fromEntries(
+  Object.entries(geneLocations as any).map(([k, v]) => [k.toLowerCase(), v])
+);
+
 // Compression utility function
 function compressBedText(text: string): string {
   try {
@@ -75,8 +81,33 @@ function compressBedText(text: string): string {
   }
 }
 
+// Function to check if a genomic region is within 1Mb of the target gene
+function isWithinTargetGeneRegion(chrom: string, start: number, end: number, targetGene: string): boolean {
+  const geneInfo = (geneLocations as any)[targetGene] || geneLocationsLower[targetGene?.toLowerCase?.()] || undefined;
+  if (!geneInfo) {
+    // If gene location not found, include all regions (fallback behavior)
+    return true;
+  }
+  
+  // Check if chromosomes match
+  if (chrom !== geneInfo.chrom) {
+    return false;
+  }
+  
+  // Define 100Mb window around the gene
+  const windowSize = 100000000; // 100 megabases
+  const geneStart = geneInfo.start;
+  const geneEnd = geneInfo.end;
+  const windowStart = Math.max(0, geneStart - windowSize);
+  const windowEnd = geneEnd + windowSize;
+  
+  // Check if region overlaps with the window
+  return !(end < windowStart || start > windowEnd);
+}
+
 // Build BED tracks (per condition) server-side with per-assay colors via itemRgb
-function buildServerBedTracks(fimoData: any, tfSymbolLocal: string, targetGeneLocal: string): Array<{ name: string; format: 'bed'; compressedText: string }> {
+// If fimoData is missing, still create empty per-condition tracks inferred from tfData.tg_affinities
+function buildServerBedTracks(fimoData: any, tfDataLocal: any, tfSymbolLocal: string, targetGeneLocal: string): Array<{ name: string; format: 'bed'; compressedText: string }> {
   const tracks: Array<{ name: string; format: 'bed'; compressedText: string }> = [];
   // simple color palette
   const palette = ['#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00', '#a65628', '#f781bf', '#999999', '#66c2a5', '#8da0cb'];
@@ -97,8 +128,15 @@ function buildServerBedTracks(fimoData: any, tfSymbolLocal: string, targetGeneLo
     return hexToRgb(palette[idx]);
   }
   try {
-    Object.keys(fimoData || {}).forEach((condition) => {
-      const assays = (fimoData as any)[condition] || {};
+    let conditionKeys = fimoData ? Object.keys(fimoData || {}) : Object.keys((tfDataLocal?.tg_affinities) || {});
+    
+    if (!conditionKeys || conditionKeys.length === 0) {
+      // Fallback: infer conditions from candidate regions
+      conditionKeys = Object.keys((candidateRegions as any) || {});
+      
+    }
+    conditionKeys.forEach((condition) => {
+      const assays = fimoData ? ((fimoData as any)[condition] || {}) : {};
       let featureCount = 0;
       const lines: string[] = [];
       lines.push(`# BED (server) for ${tfSymbolLocal} | condition=${condition} | assays=ALL`);
@@ -112,9 +150,16 @@ function buildServerBedTracks(fimoData: any, tfSymbolLocal: string, targetGeneLo
           const start1 = typeof hit.start === 'number' ? hit.start : parseInt(hit.start, 10);
           const stop1 = typeof hit.stop === 'number' ? hit.stop : parseInt(hit.stop, 10);
           if (!chrom || isNaN(start1) || isNaN(stop1)) return;
+          
           // BED is 0-based start, half-open end
           const chromStart = Math.max(0, start1 - 1);
           const chromEnd = stop1;
+          
+          // Filter: only include regions within 1Mb of target gene
+          if (!isWithinTargetGeneRegion(chrom, chromStart, chromEnd, targetGeneLocal)) {
+            return;
+          }
+          
           // Avoid spaces in name to keep BED columns intact
           const name = `${tfSymbolLocal}|${assay}`;
           const rawScore = typeof hit.score === 'number' ? hit.score : 0;
@@ -143,10 +188,10 @@ function buildServerBedTracks(fimoData: any, tfSymbolLocal: string, targetGeneLo
 }
 
 const fimoData = tfData && tfData.fimo_binding_sites ? tfData.fimo_binding_sites : undefined;
-const serverBedTracks = fimoData ? buildServerBedTracks(fimoData, tfSymbol, targetGene) : [];
+const serverBedTracks = buildServerBedTracks(fimoData, tfData, tfSymbol, targetGene);
 
 // Build BED tracks from candidate regions (per condition, color by assay, name by sample)
-function buildServerBedCandidateTracks(data: any): Array<{ name: string; format: 'bed'; compressedText: string }> {
+function buildServerBedCandidateTracks(data: any, targetGeneLocal: string): Array<{ name: string; format: 'bed'; compressedText: string }> {
   const tracks: Array<{ name: string; format: 'bed'; compressedText: string }> = [];
   // Darker, high-contrast palette for region coloring
   const palette = ['#264653', '#1d3557', '#6a040f', '#3a0ca3', '#283618', '#5e548e', '#343a40', '#7f4f24', '#1b4332', '#2c3e50'];
@@ -186,6 +231,12 @@ function buildServerBedCandidateTracks(data: any): Array<{ name: string; format:
               if (!chrom || typeof start1 !== 'number' || typeof stop1 !== 'number') return;
               const chromStart = Math.max(0, start1); // source appears 0-based already; do not subtract 1
               const chromEnd = stop1;
+              
+              // Filter: only include regions within 1Mb of target gene
+              if (!isWithinTargetGeneRegion(chrom, chromStart, chromEnd, targetGeneLocal)) {
+                return;
+              }
+              
               // Avoid spaces in name to keep BED columns intact
               const name = `${assay}:${String(sample)}`;
               const score = 0;
@@ -209,7 +260,7 @@ function buildServerBedCandidateTracks(data: any): Array<{ name: string; format:
   return tracks;
 }
 
-const serverBedCandidateTracks = buildServerBedCandidateTracks(candidateRegions);
+const serverBedCandidateTracks = buildServerBedCandidateTracks(candidateRegions, targetGene);
 
 // Calculate interaction data for this specific TF-target gene pair
 let interactionData = {

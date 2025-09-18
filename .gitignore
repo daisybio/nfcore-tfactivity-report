@@ -8,6 +8,7 @@ src/assets/metadata.json
 src/assets/params.json
 src/assets/overview.json
 src/assets/candidate_regions.json
+src/assets/gene_locations.json
 src/assets/transcription_factors/*.json
 
 # dependencies
