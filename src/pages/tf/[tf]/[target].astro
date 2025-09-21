@@ -36,7 +36,7 @@ export async function getStaticPaths() {
       allTargetGenes.forEach(targetGene => {
         paths.push({
           params: { 
-            slug: fileName.toLowerCase(), 
+            tf: fileName.toLowerCase(), 
             target: (targetGene as string).toLowerCase() 
           },
           props: { 

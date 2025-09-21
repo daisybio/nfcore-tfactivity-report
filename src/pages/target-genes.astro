@@ -1,0 +1,216 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import targetGenesData from "../assets/target_genes.json";
+---
+
+<BaseLayout title="Target Genes - nf-core/tfactivity report" active="target-genes">
+  <div class="max-w-6xl mx-auto">
+    <div class="bg-white rounded-lg shadow-lg p-8">
+      <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900 mb-4">Target Genes</h1>
+        <p class="text-gray-600 text-lg">
+          This page displays all target genes identified in the analysis. 
+          Each gene is associated with transcription factor binding predictions across different chromatin assays.
+        </p>
+      </div>
+
+      <div class="mb-6">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-xl font-semibold text-gray-800">Gene List</h2>
+          <span id="gene-count" class="text-sm text-gray-500">
+            Total genes: {Object.keys(targetGenesData).length}
+          </span>
+        </div>
+        
+        <!-- Search Field -->
+        <div class="mb-6">
+          <div class="relative">
+            <input 
+              type="text" 
+              id="gene-search" 
+              placeholder="Search genes (e.g., 'arid', 'stat', 'atf')..." 
+              class="w-full px-4 py-2 pl-10 pr-4 text-gray-700 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            <div class="absolute inset-y-0 left-0 flex items-center pl-3">
+              <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+              </svg>
+            </div>
+            <button 
+              id="clear-search" 
+              class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
+              style="display: none;"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+        
+        <div id="genes-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+          {Object.keys(targetGenesData).map((geneName) => (
+            <div class="gene-card bg-gray-50 hover:bg-gray-100 rounded-lg p-4 transition-colors duration-200" data-gene={geneName}>
+              <div class="text-sm font-medium text-gray-900">{geneName}</div>
+            </div>
+          ))}
+        </div>
+        
+        <!-- No results message -->
+        <div id="no-results" class="hidden text-center py-8">
+          <div class="text-gray-500">
+            <svg class="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 12h6m-6-4h6m2 5.291A7.962 7.962 0 0112 15c-2.34 0-4.29-1.009-5.824-2.5M15 6.5a3.5 3.5 0 11-7 0 3.5 3.5 0 017 0z"></path>
+            </svg>
+            <p class="text-lg font-medium">No genes found</p>
+            <p class="text-sm">Try adjusting your search terms</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  // Fuzzy search implementation
+  function fuzzyMatch(query, target) {
+    if (!query) return true;
+    
+    const queryLower = query.toLowerCase();
+    const targetLower = target.toLowerCase();
+    
+    // Exact match gets highest priority
+    if (targetLower.includes(queryLower)) {
+      return { match: true, score: 100 };
+    }
+    
+    // Fuzzy matching algorithm
+    let queryIndex = 0;
+    let score = 0;
+    let consecutiveMatches = 0;
+    
+    for (let i = 0; i < targetLower.length && queryIndex < queryLower.length; i++) {
+      if (targetLower[i] === queryLower[queryIndex]) {
+        queryIndex++;
+        score += 1;
+        consecutiveMatches++;
+        
+        // Bonus for consecutive matches
+        if (consecutiveMatches > 1) {
+          score += consecutiveMatches * 0.5;
+        }
+      } else {
+        consecutiveMatches = 0;
+      }
+    }
+    
+    // Check if all query characters were found
+    if (queryIndex === queryLower.length) {
+      return { match: true, score: score };
+    }
+    
+    return { match: false, score: 0 };
+  }
+  
+  function performSearch() {
+    const searchInput = document.getElementById('gene-search');
+    const genesGrid = document.getElementById('genes-grid');
+    const noResults = document.getElementById('no-results');
+    const geneCount = document.getElementById('gene-count');
+    const clearButton = document.getElementById('clear-search');
+    
+    if (!searchInput || !genesGrid || !noResults || !geneCount) return;
+    
+    const query = searchInput.value.trim();
+    const geneCards = Array.from(document.querySelectorAll('.gene-card'));
+    
+    if (!query) {
+      // Show all genes
+      geneCards.forEach(card => {
+        card.style.display = 'block';
+      });
+      noResults.classList.add('hidden');
+      geneCount.textContent = `Total genes: ${geneCards.length}`;
+      clearButton.style.display = 'none';
+      return;
+    }
+    
+    // Perform fuzzy search
+    const results = geneCards.map(card => {
+      const geneName = card.getAttribute('data-gene');
+      const matchResult = fuzzyMatch(query, geneName);
+      return { card, geneName, ...matchResult };
+    }).filter(result => result.match);
+    
+    // Sort by score (highest first)
+    results.sort((a, b) => b.score - a.score);
+    
+    // Hide all cards first
+    geneCards.forEach(card => {
+      card.style.display = 'none';
+    });
+    
+    // Show matching cards
+    results.forEach(result => {
+      result.card.style.display = 'block';
+    });
+    
+    // Show/hide no results message
+    if (results.length === 0) {
+      noResults.classList.remove('hidden');
+      genesGrid.classList.add('hidden');
+    } else {
+      noResults.classList.add('hidden');
+      genesGrid.classList.remove('hidden');
+    }
+    
+    // Update count
+    geneCount.textContent = `Showing ${results.length} of ${geneCards.length} genes`;
+    
+    // Show/hide clear button
+    clearButton.style.display = query ? 'flex' : 'none';
+  }
+  
+  function setupSearchFunctionality() {
+    const searchInput = document.getElementById('gene-search');
+    const clearButton = document.getElementById('clear-search');
+    
+    if (searchInput) {
+      // Search as user types (with debouncing)
+      let searchTimeout;
+      searchInput.addEventListener('input', () => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(performSearch, 150);
+      });
+      
+      // Handle Enter key
+      searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          clearTimeout(searchTimeout);
+          performSearch();
+        }
+      });
+    }
+    
+    if (clearButton) {
+      clearButton.addEventListener('click', () => {
+        if (searchInput) {
+          searchInput.value = '';
+          performSearch();
+          searchInput.focus();
+        }
+      });
+    }
+  }
+  
+  // Initialize search functionality
+  document.addEventListener('DOMContentLoaded', setupSearchFunctionality);
+  
+  // Also initialize immediately if DOM is already loaded
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupSearchFunctionality);
+  } else {
+    setupSearchFunctionality();
+  }
+</script>

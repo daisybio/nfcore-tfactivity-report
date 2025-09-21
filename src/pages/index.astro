@@ -5,7 +5,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 import overviewData from "../assets/overview.json";
 ---
 
-<BaseLayout title="nf-core/tfactivity report" active="rankings">
+<BaseLayout title="Transcription Factor Rankings - nf-core/tfactivity report" active="rankings">
   <!-- Loading Animation -->
   <LoadingAnimation 
     title="Initializing Rankings"
@@ -15,7 +15,18 @@ import overviewData from "../assets/overview.json";
 
   <!-- Main Content (initially hidden) -->
   <div id="main-content" style="display: none;">
-    <RankingContainer overviewData={overviewData} />
+    <div class="max-w-6xl mx-auto mb-8">
+      <div class="bg-white rounded-lg shadow-lg p-8">
+        <div class="mb-8">
+          <h1 class="text-3xl font-bold text-gray-900 mb-4">Transcription Factor Rankings</h1>
+          <p class="text-gray-600 text-lg">
+            This page shows the ranking of transcription factors based on their activity scores 
+            across different chromatin assays and target genes.
+          </p>
+        </div>
+        <RankingContainer overviewData={overviewData} />
+      </div>
+    </div>
   </div>
 
   <!-- Loading state management script -->

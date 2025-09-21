@@ -1,6 +1,6 @@
 ---
 export interface Props {
-  active?: 'rankings' | 'parameters' | 'citations';
+  active?: 'rankings' | 'target-genes' | 'parameters' | 'citations';
 }
 
 const { active = 'rankings' } = Astro.props as Props;
@@ -8,7 +8,8 @@ const { active = 'rankings' } = Astro.props as Props;
 
 <div class="max-w-4xl mx-auto px-4 mb-8">
   <nav class="flex justify-center space-x-6">
-    <a href="/index.html" class={active === 'rankings' ? 'text-gray-800 font-bold' : 'text-blue-600 hover:text-blue-800 font-medium'}>Rankings</a>
+    <a href="/index.html" class={active === 'rankings' ? 'text-gray-800 font-bold' : 'text-blue-600 hover:text-blue-800 font-medium'}>Transcription Factor Rankings</a>
+    <a href="/target-genes/index.html" class={active === 'target-genes' ? 'text-gray-800 font-bold' : 'text-blue-600 hover:text-blue-800 font-medium'}>Target Genes</a>
     <a href="/parameters/index.html" class={active === 'parameters' ? 'text-gray-800 font-bold' : 'text-blue-600 hover:text-blue-800 font-medium'}>Parameters</a>
     <a href="/citations/index.html" class={active === 'citations' ? 'text-gray-800 font-bold' : 'text-blue-600 hover:text-blue-800 font-medium'}>Citations</a>
     <a href="https://nf-co.re/tfactivity/" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 font-medium inline-flex items-center">
