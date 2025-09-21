@@ -115,4 +115,58 @@ const chartId = `de-chart-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
   document.addEventListener('DOMContentLoaded', () => {
     createDifferentialExpressionChart();
   });
+
+  // Handle window resize to ensure optimal width
+  window.addEventListener('resize', () => {
+    const chartElement = document.getElementById(chartId);
+    if (chartElement && window.Plotly) {
+      Plotly.Plots.resize(chartId);
+    }
+  });
+
+  // Listen for loading completion (when content becomes visible)
+  const checkLoadingComplete = () => {
+    const mainContent = document.getElementById('gene-main-content');
+    const loadingOverlay = document.getElementById('gene-loading-overlay');
+    
+    if (mainContent && loadingOverlay) {
+      // Check if loading is complete (main content is visible)
+      if (mainContent.style.display !== 'none' && loadingOverlay.style.display === 'none') {
+        setTimeout(() => {
+          const chartElement = document.getElementById(chartId);
+          if (chartElement && window.Plotly) {
+            Plotly.Plots.resize(chartId);
+          }
+        }, 100);
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // Check for loading completion periodically
+  const loadingCheckInterval = setInterval(() => {
+    if (checkLoadingComplete()) {
+      clearInterval(loadingCheckInterval);
+    }
+  }, 200);
+
+  // Also check when main content becomes visible
+  const observer = new MutationObserver(() => {
+    if (checkLoadingComplete()) {
+      observer.disconnect();
+      clearInterval(loadingCheckInterval);
+    }
+  });
+
+  // Start observing the main content element
+  document.addEventListener('DOMContentLoaded', () => {
+    const mainContent = document.getElementById('gene-main-content');
+    if (mainContent) {
+      observer.observe(mainContent, { 
+        attributes: true, 
+        attributeFilter: ['style', 'display'] 
+      });
+    }
+  });
 </script> 

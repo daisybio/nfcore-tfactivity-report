@@ -127,6 +127,16 @@ const { name } = Astro.props;
   .target-gene-item {
     border-radius: 0.5rem;
   }
+
+  /* Ensure tables use full width */
+  table {
+    width: 100% !important;
+    table-layout: auto;
+  }
+  
+  table td, table th {
+    width: auto;
+  }
 </style>
 
 <script define:vars={{ name }}>
@@ -289,6 +299,7 @@ const { name } = Astro.props;
     // Utility function to render heatmaps
     function renderHeatmap(containerId, title, data, columns, colorScheme) {
       const container = document.getElementById(containerId);
+      
       if (!container || !data || data.length === 0 || !columns || columns.length === 0) {
         if (container) {
           container.innerHTML = `
@@ -346,7 +357,7 @@ const { name } = Astro.props;
           <h6 class="font-medium text-gray-800 mb-2 text-sm">${title}</h6>
           <div class="bg-white border border-gray-200 rounded overflow-hidden">
             <div class="overflow-x-auto">
-              <table class="min-w-full border-collapse text-xs">
+              <table class="w-full border-collapse text-xs table-auto">
                 <thead>
                   <tr>
                     <th class="border border-gray-300 px-2 py-1 bg-gray-50 font-medium text-gray-700 text-left">Assay</th>
@@ -397,6 +408,16 @@ const { name } = Astro.props;
       `;
       
       container.innerHTML = heatmapHtml;
+      
+      // Ensure the container uses full width
+      container.style.width = '100%';
+      
+      // Force table to recalculate its layout
+      const table = container.querySelector('table');
+      if (table) {
+        table.style.width = '100%';
+        table.style.tableLayout = 'auto';
+      }
     }
 
     // Function to show target gene details in inline expansion panel
@@ -727,6 +748,59 @@ const { name } = Astro.props;
             loadTargetGenes();
           }
         }, 100);
+      }
+    });
+
+    // Listen for loading completion (when content becomes visible)
+    const checkLoadingComplete = () => {
+      const mainContent = document.getElementById('gene-main-content');
+      const loadingOverlay = document.getElementById('gene-loading-overlay');
+      
+      if (mainContent && loadingOverlay) {
+        // Check if loading is complete (main content is visible)
+        if (mainContent.style.display !== 'none' && loadingOverlay.style.display === 'none') {
+          setTimeout(() => {
+            // Re-render all heatmaps to ensure optimal width
+            document.querySelectorAll('[id^="affinity-heatmap-"], [id^="affinity-ratio-heatmap-"], [id^="affinity-sum-heatmap-"]').forEach(container => {
+              if (container) {
+                container.style.width = '100%';
+                const table = container.querySelector('table');
+                if (table) {
+                  table.style.width = '100%';
+                  table.style.tableLayout = 'auto';
+                }
+              }
+            });
+          }, 100);
+          return true;
+        }
+      }
+      return false;
+    };
+
+    // Check for loading completion periodically
+    const loadingCheckInterval = setInterval(() => {
+      if (checkLoadingComplete()) {
+        clearInterval(loadingCheckInterval);
+      }
+    }, 200);
+
+    // Also check when main content becomes visible
+    const observer = new MutationObserver(() => {
+      if (checkLoadingComplete()) {
+        observer.disconnect();
+        clearInterval(loadingCheckInterval);
+      }
+    });
+
+    // Start observing the main content element
+    document.addEventListener('DOMContentLoaded', () => {
+      const mainContent = document.getElementById('gene-main-content');
+      if (mainContent) {
+        observer.observe(mainContent, { 
+          attributes: true, 
+          attributeFilter: ['style', 'display'] 
+        });
       }
     });
   });
