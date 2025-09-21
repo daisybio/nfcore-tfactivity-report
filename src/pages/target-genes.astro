@@ -1,6 +1,6 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
-import targetGenesData from "../assets/target_genes.json";
+import metadata from "../assets/metadata.json";
 ---
 
 <BaseLayout title="Target Genes - nf-core/tfactivity report" active="target-genes">
@@ -18,7 +18,7 @@ import targetGenesData from "../assets/target_genes.json";
         <div class="flex justify-between items-center mb-4">
           <h2 class="text-xl font-semibold text-gray-800">Gene List</h2>
           <span id="gene-count" class="text-sm text-gray-500">
-            Total genes: {Object.keys(targetGenesData).length}
+            Total genes: {metadata.target_genes.length}
           </span>
         </div>
         
@@ -49,10 +49,14 @@ import targetGenesData from "../assets/target_genes.json";
         </div>
         
         <div id="genes-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-          {Object.keys(targetGenesData).map((geneName) => (
-            <div class="gene-card bg-gray-50 hover:bg-gray-100 rounded-lg p-4 transition-colors duration-200" data-gene={geneName}>
+          {metadata.target_genes.map((geneName) => (
+            <a 
+              href={`/target-gene/${geneName.toLowerCase()}/index.html`}
+              class="gene-card bg-gray-50 hover:bg-gray-100 rounded-lg p-4 transition-colors duration-200 block cursor-pointer" 
+              data-gene={geneName}
+            >
               <div class="text-sm font-medium text-gray-900">{geneName}</div>
-            </div>
+            </a>
           ))}
         </div>
         

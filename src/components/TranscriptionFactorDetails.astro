@@ -1,7 +1,5 @@
 ---
-import DCGScoresChart from "./plots/DCGScoresChart.astro";
-import DifferentialExpressionChart from "./plots/DifferentialExpressionChart.astro";
-import TPMBoxplot from "./plots/TPMBoxplot.astro";
+import ExpressionAnalysisSection from "./ExpressionAnalysisSection.astro";
 import TargetGenesView from "./plots/TargetGenesView.astro";
 import RegressionCoefficientsHeatmap from "./plots/RegressionCoefficientsHeatmap.astro";
 
@@ -36,22 +34,12 @@ const extractedData = tfData || (overviewData?.[name] || null);
 
   <!-- Tab Content -->
   <div id={`content-plots-${name}`} class="tab-content active">
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <!-- Activity Across Assays - DCG Scores Chart -->
-      <div class="md:col-span-2">
-        <DCGScoresChart name={name} dcgScores={extractedData?.dcg} />
-      </div>
-      
-      <!-- Differential Expression Chart -->
-      <div class="md:col-span-2">
-        <DifferentialExpressionChart name={name} differentialExpressionData={extractedData?.differential_expression} />
-      </div>
-      
-      <!-- TPM Expression Levels Chart -->
-      <div class="md:col-span-2">
-        <TPMBoxplot name={name} tpmData={extractedData?.tpm} />
-      </div>
-    </div>
+    <ExpressionAnalysisSection 
+      name={name}
+      dcgScores={extractedData?.dcg}
+      differentialExpressionData={extractedData?.differential_expression}
+      tpmData={extractedData?.tpm}
+    />
   </div>
 
   <div id={`content-targets-${name}`} class="tab-content hidden">

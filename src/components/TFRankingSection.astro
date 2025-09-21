@@ -1,0 +1,143 @@
+---
+import AssayToggleButtons from "./AssayToggleButtons.astro";
+
+export interface Props {
+  geneName: string;
+  geneData?: any;
+  title?: string;
+  description?: string;
+}
+
+const { 
+  geneName, 
+  geneData,
+  title = "Transcription Factor Rankings",
+  description = "Ranking of transcription factors based on their binding scores for this target gene"
+} = Astro.props;
+---
+
+<div class="bg-white rounded-lg shadow-sm">
+  <div class="px-6 py-4 border-b border-gray-200">
+    <h2 class="text-xl font-semibold text-gray-800">{title}</h2>
+    <p class="text-gray-600 text-sm mt-1">{description}</p>
+  </div>
+  
+  <!-- Assay Selector -->
+  <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+    <p class="text-sm text-gray-600 mb-3 text-center">
+      Select which chromatin accessibility assays to include in the ranking calculation. <br />
+      Rankings are based on average scores across selected assays.
+    </p>
+    <AssayToggleButtons />
+  </div>
+  
+  <div class="p-6">
+    <div id="tf-ranking-container" class="bg-gray-50 rounded-lg border border-gray-200">
+      <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 rounded-t-lg">
+        <div class="grid grid-cols-3 gap-4 font-semibold text-gray-700">
+          <span>Rank</span>
+          <span>Transcription Factor</span>
+          <span class="text-right">Average Score</span>
+        </div>
+      </div>
+      <div id="tf-ranking-list" class="divide-y divide-gray-100">
+        <!-- TF rankings will be populated here -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<script define:vars={{ geneName, geneData }}>
+  function createTFRanking() {
+    if (!geneData || !geneData.transcription_factors) return;
+    
+    const rankingList = document.getElementById('tf-ranking-list');
+    if (!rankingList) return;
+    
+    // Get currently active assays
+    const activeAssays = Array.from(document.querySelectorAll('.assay-toggle[data-active="true"]'))
+      .map(button => button.getAttribute('data-assay'));
+    
+    if (activeAssays.length === 0) {
+      rankingList.innerHTML = '<div class="px-6 py-8 text-center text-gray-500">No assays selected</div>';
+      return;
+    }
+    
+    // Calculate average scores for each TF using only active assays
+    const tfScores = {};
+    
+    activeAssays.forEach(assay => {
+      if (geneData.transcription_factors[assay] && typeof geneData.transcription_factors[assay] === 'object') {
+        Object.entries(geneData.transcription_factors[assay]).forEach(([tf, score]) => {
+          if (!tfScores[tf]) {
+            tfScores[tf] = { scores: [], total: 0, count: 0 };
+          }
+          tfScores[tf].scores.push(score);
+          tfScores[tf].total += score;
+          tfScores[tf].count += 1;
+        });
+      }
+    });
+    
+    // Calculate averages and create ranking
+    const rankings = Object.entries(tfScores).map(([tf, data]) => ({
+      tf,
+      averageScore: data.total / data.count,
+      assayCount: data.count
+    }));
+    
+    // Sort by average score (descending)
+    rankings.sort((a, b) => b.averageScore - a.averageScore);
+    
+    // Render ranking
+    if (rankings.length === 0) {
+      rankingList.innerHTML = '<div class="px-6 py-8 text-center text-gray-500">No transcription factors found for selected assays</div>';
+    } else {
+      rankingList.innerHTML = rankings.map((ranking, index) => `
+        <div class="px-6 py-4 hover:bg-gray-50 transition-colors">
+          <div class="grid grid-cols-3 gap-4 items-center">
+            <span class="text-gray-600 font-medium">#${index + 1}</span>
+            <div class="flex items-center space-x-2">
+              <span class="text-gray-900 font-medium">${ranking.tf}</span>
+              <a 
+                href="/tf/${ranking.tf.toLowerCase()}/${geneName.toLowerCase()}/index.html"
+                class="inline-flex items-center text-blue-600 hover:text-blue-800 transition-colors duration-150 text-sm"
+                title="View ${ranking.tf} → ${geneName} interaction details"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
+                </svg>
+              </a>
+            </div>
+            <span class="text-right text-blue-600 font-semibold">${ranking.averageScore.toFixed(3)}</span>
+          </div>
+          <div class="text-xs text-gray-500 mt-1">
+            (${ranking.assayCount} assay${ranking.assayCount !== 1 ? 's' : ''})
+          </div>
+        </div>
+      `).join('');
+    }
+  }
+  
+  // Update rankings when assay selection changes
+  function observeAssayChanges() {
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'data-active') {
+          createTFRanking();
+        }
+      });
+    });
+    
+    // Observe all assay toggle buttons
+    document.querySelectorAll('.assay-toggle').forEach(button => {
+      observer.observe(button, { attributes: true });
+    });
+  }
+  
+  // Initialize components
+  document.addEventListener('DOMContentLoaded', () => {
+    createTFRanking();
+    observeAssayChanges();
+  });
+</script>

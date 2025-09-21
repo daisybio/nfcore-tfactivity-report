@@ -1,0 +1,184 @@
+---
+import "../../styles/global.css";
+import LoadingAnimation from "../../components/LoadingAnimation.astro";
+import PageHeader from "../../components/PageHeader.astro";
+import ExpressionAnalysisSection from "../../components/ExpressionAnalysisSection.astro";
+import TFRankingSection from "../../components/TFRankingSection.astro";
+import TabSwitcher from "../../components/TabSwitcher.astro";
+import metadata from "../../assets/metadata.json";
+
+export async function getStaticPaths() {
+  // Generate paths for each target gene from metadata
+  const geneNames = metadata.target_genes;
+  
+  return geneNames.map((geneName: string) => ({
+    params: { gene: geneName.toLowerCase() },
+    props: { geneName }
+  }));
+}
+
+interface Props {
+  geneName: string;
+}
+
+const { geneName }: Props = Astro.props;
+
+// Import the individual gene file
+let geneData = null;
+try {
+  const geneFile = await import(`../../assets/target_genes/${geneName}.json`);
+  geneData = geneFile.default;
+} catch (error) {
+  console.error(`Error loading gene data for ${geneName}:`, error);
+}
+
+// Calculate average score and assay count for this gene
+let totalScore = 0;
+let totalScoreCount = 0;
+let uniqueAssays = new Set<string>();
+let transcriptionFactors = new Set<string>();
+
+if (geneData && geneData.transcription_factors) {
+  Object.entries(geneData.transcription_factors).forEach(([assay, tfScores]) => {
+    if (typeof tfScores === 'object' && tfScores !== null) {
+      uniqueAssays.add(assay);
+      Object.entries(tfScores).forEach(([tf, score]) => {
+        if (typeof score === 'number') {
+          totalScore += score;
+          totalScoreCount++;
+          transcriptionFactors.add(tf);
+        }
+      });
+    }
+  });
+}
+
+const averageScore = totalScoreCount > 0 ? totalScore / totalScoreCount : 0;
+const assayCount = uniqueAssays.size;
+const tfCount = transcriptionFactors.size;
+
+// Transform gene data into DCG scores format for the chart
+// Calculate average DCG score per assay across all TFs
+const dcgScores = {};
+if (geneData && geneData.transcription_factors) {
+  Object.entries(geneData.transcription_factors).forEach(([assay, tfScores]) => {
+    if (typeof tfScores === 'object' && tfScores !== null) {
+      const scores = Object.values(tfScores).filter(score => typeof score === 'number');
+      if (scores.length > 0) {
+        dcgScores[assay] = scores.reduce((sum, score) => sum + score, 0) / scores.length;
+      }
+    }
+  });
+}
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="generator" content={Astro.generator} />
+    <title>{geneName} - Target Gene - nf-core/tfactivity report</title>
+  </head>
+  <body class="bg-gray-50">
+    <div class="max-w-6xl mx-auto py-8 px-4">
+      <!-- Loading Animation -->
+      <LoadingAnimation 
+        title={`Loading ${geneName} Details`}
+        subtitle="Processing target gene data and generating visualizations..."
+        containerId="gene-loading-overlay"
+      />
+
+      <!-- Main Content (initially hidden) -->
+      <div id="gene-main-content" style="display: none;">
+        <!-- Header -->
+        <PageHeader 
+          title={geneName}
+          subtitle="Target Gene Activity Report"
+          averageScore={averageScore}
+          assayCount={assayCount}
+          tfCount={tfCount}
+          backLink="/target-genes/index.html"
+          backText="Back to Target Genes"
+          genecardsLink={`https://www.genecards.org/cgi-bin/carddisp.pl?gene=${geneName}`}
+        />
+
+        <!-- Tab Switcher -->
+        <TabSwitcher 
+          name={geneName}
+          defaultTab="expression"
+        >
+          <div slot="expression">
+            <ExpressionAnalysisSection 
+              name={geneName}
+              dcgScores={dcgScores}
+              differentialExpressionData={geneData?.differential_expression}
+              tpmData={geneData?.tpm}
+            />
+          </div>
+          <div slot="rankings">
+            <TFRankingSection 
+              geneName={geneName}
+              geneData={geneData}
+            />
+          </div>
+        </TabSwitcher>
+      </div>
+    </div>
+
+    <!-- Loading state management script -->
+    <script define:vars={{ geneName, geneData }}>
+      // Store the gene data globally so client-side components can access it
+      if (!window.geneDataCache) {
+        window.geneDataCache = {};
+      }
+      if (geneData) {
+        window.geneDataCache[geneName] = geneData;
+      }
+      
+      // Handle loading state
+      document.addEventListener('DOMContentLoaded', () => {
+        const checkContentReady = () => {
+          const loadingOverlay = document.getElementById('gene-loading-overlay');
+          const mainContent = document.getElementById('gene-main-content');
+          
+          if (loadingOverlay && mainContent) {
+            // Add a small delay to ensure smooth transition
+            setTimeout(() => {
+              // Hide loading animation
+              loadingOverlay.style.transition = 'opacity 0.5s ease-out';
+              loadingOverlay.style.opacity = '0';
+              
+              setTimeout(() => {
+                loadingOverlay.style.display = 'none';
+                
+                // Show main content with fade in
+                mainContent.style.display = 'block';
+                mainContent.style.opacity = '0';
+                mainContent.style.transition = 'opacity 0.5s ease-in';
+                
+                // Trigger the fade in
+                setTimeout(() => {
+                  mainContent.style.opacity = '1';
+                }, 10);
+              }, 500);
+            }, 600);
+          } else {
+            // If not ready yet, check again
+            setTimeout(checkContentReady, 100);
+          }
+        };
+        
+        // Start checking after DOM is loaded
+        checkContentReady();
+      });
+    </script>
+
+  </body>
+</html>
+
+<style>
+  html {
+    font-family: system-ui, sans-serif;
+  }
+</style>

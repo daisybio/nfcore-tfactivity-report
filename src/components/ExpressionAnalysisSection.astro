@@ -1,0 +1,48 @@
+---
+import DCGScoresChart from "./plots/DCGScoresChart.astro";
+import DifferentialExpressionChart from "./plots/DifferentialExpressionChart.astro";
+import TPMBoxplot from "./plots/TPMBoxplot.astro";
+
+export interface Props {
+  name: string;
+  dcgScores?: any;
+  differentialExpressionData?: any;
+  tpmData?: any;
+  title?: string;
+  description?: string;
+}
+
+const { 
+  name, 
+  dcgScores, 
+  differentialExpressionData, 
+  tpmData,
+  title = "Expression Analysis",
+  description = "Transcription factor binding scores and gene expression analysis across different conditions"
+} = Astro.props;
+---
+
+<div class="bg-white rounded-lg shadow-sm mb-6">
+  <div class="px-6 py-4 border-b border-gray-200">
+    <h2 class="text-xl font-semibold text-gray-800">{title}</h2>
+    <p class="text-gray-600 text-sm mt-1">{description}</p>
+  </div>
+  <div class="p-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <!-- Activity Across Assays - DCG Scores Chart -->
+      <div class="md:col-span-2">
+        <DCGScoresChart name={name} dcgScores={dcgScores} />
+      </div>
+      
+      <!-- Differential Expression Chart -->
+      <div class="md:col-span-2">
+        <DifferentialExpressionChart name={name} differentialExpressionData={differentialExpressionData} />
+      </div>
+      
+      <!-- TPM Expression Levels Chart -->
+      <div class="md:col-span-2">
+        <TPMBoxplot name={name} tpmData={tpmData} />
+      </div>
+    </div>
+  </div>
+</div>
