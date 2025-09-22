@@ -9,9 +9,9 @@ src/assets/params.json
 src/assets/overview.json
 src/assets/candidate_regions.json
 src/assets/gene_locations.json
-src/assets/transcription_factors/*.json
+src/assets/transcription_factors
 src/assets/target_genes.json
-src/assets/target_genes/*.json
+src/assets/target_genes
 
 # dependencies
 node_modules/
