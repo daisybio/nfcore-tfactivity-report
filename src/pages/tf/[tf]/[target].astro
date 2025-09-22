@@ -3,6 +3,7 @@ import "../../../styles/global.css";
 import LoadingAnimation from "../../../components/LoadingAnimation.astro";
 import candidateRegions from "../../../assets/candidate_regions.json";
 import geneLocations from "../../../assets/gene_locations.json";
+import params from "../../../assets/params.json";
 import { gzipSync } from 'node:zlib';
 
 export async function getStaticPaths() {
@@ -69,6 +70,11 @@ const tfSymbol = tfName?.includes('(') ? tfName.split('(')[0] : tfName;
 const geneLocationsLower: Record<string, any> = Object.fromEntries(
   Object.entries(geneLocations as any).map(([k, v]) => [k.toLowerCase(), v])
 );
+
+// Determine genome from params.json; if missing, disable binding sites tab
+const genomeFromParams: string | undefined = (params as any)["Reference genome options"]?.genome;
+const bindingSitesEnabled: boolean = !!genomeFromParams;
+const genomeParam: string | undefined = bindingSitesEnabled ? genomeFromParams : undefined;
 
 // Compression utility function
 function compressBedText(text: string): string {
@@ -486,7 +492,13 @@ if (tfData) {
                 <button id="tab-affinities" class="tab-button active whitespace-nowrap py-2 px-1 border-b-2 border-blue-500 font-medium text-sm text-blue-600">
                   Affinities
                 </button>
-                <button id="tab-binding-sites" class="tab-button whitespace-nowrap py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                <button 
+                  id="tab-binding-sites" 
+                  class={`tab-button whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm ${bindingSitesEnabled ? 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' : 'border-transparent text-gray-400 cursor-not-allowed opacity-60'}`}
+                  disabled={!bindingSitesEnabled ? true : undefined}
+                  title={!bindingSitesEnabled ? `nf-core/tfactivity was executed without the "genome" parameter. Thus, we cannot set up the genome browser view for the binding sites. Please re-run nf-core/tfactivity with the "genome" parameter enabled.` : undefined}
+                  aria-disabled={!bindingSitesEnabled}
+                >
                   Binding sites
                 </button>
               </nav>
@@ -508,7 +520,13 @@ if (tfData) {
             </div>
 
             <div id="content-binding-sites" class="tab-content hidden">
-              <visa-ge id="visage-browser" genome-id="mm10" selected-genes={`${tfSymbol},${targetGene}`} location={targetGene}></visa-ge>
+              {bindingSitesEnabled ? (
+                <visa-ge id="visage-browser" genome-id={genomeParam} selected-genes={`${tfSymbol},${targetGene}`} location={targetGene}></visa-ge>
+              ) : (
+                <div class="text-center text-gray-500 py-6 bg-gray-50 border border-gray-200 rounded-lg">
+                  nf-core/tfactivity was executed without the "genome" parameter. Thus, we cannot set up the genome browser view for the binding sites. Please re-run nf-core/tfactivity with the "genome" parameter enabled.
+                </div>
+              )}
             </div>
           </div>
         </div>
