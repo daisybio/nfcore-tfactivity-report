@@ -11,6 +11,7 @@ src/assets/candidate_regions.json
 src/assets/gene_locations.json
 src/assets/transcription_factors/*.json
 src/assets/target_genes.json
+src/assets/target_genes/*.json
 
 # dependencies
 node_modules/
