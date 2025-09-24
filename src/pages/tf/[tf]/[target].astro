@@ -388,11 +388,12 @@ if (tfData) {
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width" />
     <meta name="generator" content={Astro.generator} />
+    <link rel="stylesheet" href="https://unpkg.com/@visa-ge/visage@latest/styles.css">
     <title>{tfName} - {targetGene} Interaction - nf-core/tfactivity report</title>
   </head>
   <body class="bg-gray-50">
+    <script src="https://unpkg.com/@visa-ge/visage@latest/visage.js"></script>
     <script>
-      import '@visa-ge/visage';
       import '../../../scripts/bedTrackLoader';
     </script>
     <div class="max-w-6xl mx-auto py-8 px-4">
