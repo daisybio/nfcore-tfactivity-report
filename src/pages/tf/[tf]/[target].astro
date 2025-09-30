@@ -392,10 +392,8 @@ if (tfData) {
     <title>{tfName} - {targetGene} Interaction - nf-core/tfactivity report</title>
   </head>
   <body class="bg-gray-50">
+    <script src="https://cdn.jsdelivr.net/npm/pako@2.1/dist/pako.min.js" onerror="console.log('Hello')"></script>
     <script src="https://unpkg.com/@visa-ge/visage@latest/visage.js" onerror="window.__visageLoadError=true"></script>
-    <script>
-      import '../../../scripts/bedTrackLoader';
-    </script>
     <div class="max-w-6xl mx-auto py-8 px-4">
       <!-- Loading Animation -->
       <LoadingAnimation 
@@ -541,6 +539,71 @@ if (tfData) {
 
     <!-- Loading state management, heatmap rendering, and track loading script -->
     <script type="module" define:vars={{ tfName, targetGene, interactionData, serverBedTracks, serverBedCandidateTracks }}>
+
+      // Decompress BED text that was compressed server-side (base64 gzipped)
+      function decompressBedText(compressedText) {
+        try {
+          const binaryString = atob(compressedText);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          const decompressed = (window.pako && window.pako.inflate) ? window.pako.inflate(bytes, { to: 'string' }) : bytes;
+          if (typeof decompressed === 'string') return decompressed;
+          return new TextDecoder().decode(decompressed);
+        } catch (e) {
+          console.warn('Failed to decompress BED text, using original:', e);
+          return compressedText;
+        }
+      }
+
+      // Load BED tracks into the VISAGE genome browser component
+      function loadBedTracksIntoVisage(serverBedTracks, serverBedCandidateTracks) {
+        try {
+          const browserEl = document.getElementById('visage-browser');
+          if (browserEl) {
+            const decompressedTracksA = Array.isArray(serverBedTracks)
+              ? serverBedTracks.map(t => ({
+                  name: t.name,
+                  text: decompressBedText(t.compressedText),
+                  format: t.format
+                }))
+              : [];
+
+            const decompressedTracksB = Array.isArray(serverBedCandidateTracks)
+              ? serverBedCandidateTracks.map(t => ({
+                  name: t.name,
+                  text: decompressBedText(t.compressedText),
+                  format: t.format
+                }))
+              : [];
+
+            const blobsA = decompressedTracksA.map(t => ({
+              name: t.name,
+              url: URL.createObjectURL(new Blob([t.text], { type: 'text/plain' })),
+              format: t.format
+            }));
+            const blobsB = decompressedTracksB.map(t => ({
+              name: t.name,
+              url: URL.createObjectURL(new Blob([t.text], { type: 'text/plain' })),
+              format: t.format
+            }));
+
+            const blobs = [...blobsA, ...blobsB];
+            const tracks = blobs.map(b => ({ name: b.name, type: 'annotation', format: b.format, url: b.url }));
+            browserEl.setAttribute('tracks', JSON.stringify(tracks));
+            window.addEventListener('beforeunload', () => {
+              blobs.forEach(b => URL.revokeObjectURL(b.url));
+            });
+          }
+        } catch (e) {
+          // Swallow errors
+        }
+      }
+
+      // Expose for later invocation in this module
+      window.loadBedTracksIntoVisage = loadBedTracksIntoVisage;
+
       // Utility function to render heatmaps
       function renderHeatmap(containerId, title, data, columns, colorScheme) {
         const container = document.getElementById(containerId);
